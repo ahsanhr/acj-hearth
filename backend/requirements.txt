@@ -3,9 +3,9 @@ uvicorn[standard]
 pydantic
 pydantic-settings
 python-dotenv
-sqlalchemy
-alembic
+pymongo
 passlib[bcrypt]
 python-jose[cryptography]
 pytest
 httpx
+certifi
