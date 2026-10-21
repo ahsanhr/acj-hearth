@@ -1,9 +1,10 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
+from app.api.deps import current_identity
 from app.schemas.board import BoardCreate
-from app.services.board import get_all_boards, create_board
+from app.services.board import create_board, get_all_boards
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(current_identity)])
 
 
 @router.get("/")
