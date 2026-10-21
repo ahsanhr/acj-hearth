@@ -3,9 +3,10 @@ uvicorn[standard]
 pydantic
 pydantic-settings
 python-dotenv
-pymongo
-passlib[bcrypt]
-python-jose[cryptography]
+pymongo>=4.11,<5
+argon2-cffi>=23.1
+PyJWT>=2.10,<3
+email-validator>=2.2
 pytest
 httpx
 certifi
