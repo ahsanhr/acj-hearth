@@ -2,7 +2,7 @@
 from fastapi import APIRouter, status
 
 from app.schemas.task import TaskCreate, TaskUpdate
-from app.services.task import create_task, get_list_tasks, update_task
+from app.services.task import create_task, get_list_tasks, update_task, delete_task
 
 router = APIRouter()
 
@@ -19,3 +19,7 @@ async def get_tasks(list_id: str):
 
 async def edit_task(task_id: str, task: TaskUpdate):
     return await update_task(task_id, task)
+
+
+async def remove_task(task_id: str):
+    return await delete_task(task_id)
