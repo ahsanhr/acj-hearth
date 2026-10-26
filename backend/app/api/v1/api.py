@@ -31,9 +31,17 @@ api_router.include_router(
     prefix="/lists/{list_id}/tasks",
     tags=["tasks"]
 )
+
 api_router.add_api_route(
     "/tasks/{task_id}",
     tasks.edit_task,
     methods=["PATCH"],
+    tags=["tasks"]
+)
+
+api_router.add_api_route(
+    "/tasks/{task_id}",
+    tasks.remove_task,
+    methods=["DELETE"],
     tags=["tasks"]
 )
