@@ -27,7 +27,6 @@ backend/
 │   ├── services/
 │   │   └── user.py
 │   └── main.py
-├── alembic/
 ├── tests/
 ├── .env
 ├── README.md
@@ -56,10 +55,10 @@ Global application configuration and infrastructure setup.
 
 ### `backend/app/models/`
 
-Database models, typically SQLAlchemy ORM models.
+Pydantic models representing MongoDB documents. Database access uses PyMongo.
 
-- `base.py`: Shared declarative base for ORM models.
-- `user.py`: User table/model definition.
+- `base.py`: Shared MongoDB document model and ObjectId handling.
+- `user.py`: User document model definition.
 
 ### `backend/app/schemas/`
 
@@ -77,10 +76,6 @@ Example flow:
 ```text
 HTTP Request -> API Endpoint -> Service -> Model/Database -> Response Schema -> HTTP Response
 ```
-
-### `backend/alembic/`
-
-Database migration directory. Alembic migration files and configuration will live here once database migrations are initialized.
 
 ### `backend/tests/`
 
