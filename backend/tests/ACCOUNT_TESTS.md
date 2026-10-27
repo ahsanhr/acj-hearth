@@ -1,94 +1,99 @@
-# Account service TDD tests
+# Account test organization
 
-The condensed suite verifies the [account API contract](../README.md#api) through
-concrete resource service boundaries. It has **144 parameterized account cases
-in seven modules**: the condensed 130 plus 14 checks connected as the previously
-deferred content boundaries were implemented. Existing security/auth tests supply
-shared token and password-policy coverage. Missing behavior must fail, not `xfail`.
+The account suite verifies the [account API contract](../README.md#api) through
+six categories: **123 parameterized cases**, reduced from 144 by removing
+overlapping examples. Tests remain independent, with useful parameter IDs;
+examples were not hidden inside loops just to reduce the displayed count.
+
+## Categories
+
+| Category / module | Cases | What it establishes |
+| --- | ---: | --- |
+| Happy paths — `test_account_happy_paths.py` | 13 | Canonical creation without login; read-only retrieval; name/email/password/combined updates; unchanged email; nonunique aliases; valid name/password boundaries and Unicode |
+| Invalid inputs — `test_account_invalid_inputs.py` | 31 | Malformed/nonobject/null bodies; missing/null/wrong-type fields; empty updates; invalid names/emails/passwords; protected fields and server-managed state |
+| Authorization — `test_account_authorization.py` | 21 | Live identity on mutations; current-password confirmation; caller-only account targets; membership; message authorship; allowed/disallowed origins |
+| Data integrity — `test_account_data_integrity.py` | 22 | DTO/public allowlists; atomic duplicate-email rejection; no secrets in responses/logs; retired routes; deletion cascades and retained replies; fresh identity after email reuse; database constraints; shared transactions; irreversible tombstones and no upserts |
+| Rollback — `test_account_rollback.py` | 18 | Post-write failures during PATCH and every cleanup stage; bounded retries; confirmed aborts; ambiguous commit confirmation without write replay; lost insert acknowledgement |
+| Concurrency — `test_account_concurrency.py` | 18 | Duplicate registrations/updates; stale identities/passwords/sessions; parent deletion racing other members' creation/edits; message/deletion races and membership cleanup |
+
+Related [auth/security tests](AUTH_TESTS.md) use the same category organization.
+Board/list/task regression tests remain in their own feature modules. This organization changes tests and test helpers only, not
+application behavior.
+
+## Deduplication decisions
+
+- **Public serialization:** creation checks the complete public response with
+  verification false; retrieval checks the current verification state as true.
+  Separate unit examples repeating both serializer outputs were removed.
+- **Password acceptance:** keep minimum length, maximum Unicode length, and
+  Unicode punctuation examples. Symbol/whitespace preservation is already proven
+  by the creation/hash integration test and `test_auth_data_integrity.py`.
+- **Name boundaries:** test 1/128-character acceptance and invalid length/type
+  at the schema layer. One name-only API path still verifies trimming, persistence,
+  untouched fields, and session preservation.
+- **Invalid requests:** keep representatives for malformed JSON, nonobject data,
+  and a null body, rather than repeating the same parser errors on every route.
+  Missing/null/wrong-type credential examples remain distinct.
+- **Protected fields:** representative rejection tests plus exact request DTO
+  allowlists and `extra=forbid` cover unknown/protected fields without enumerating
+  every spelling. The caller-only API test exercises both mutation routes.
+- **Authentication:** GET denial behavior is covered in `test_auth_authorization.py`.
+  PATCH and DELETE each retain all missing/revoked/disabled/deleted states because
+  they are separate mutation entry points.
+- **Password confirmation:** missing confirmation is checked once for the shared
+  PATCH DTO; an incorrect password is still tested independently for name, email,
+  and password changes, plus deletion.
+- **Duplicate email:** the account concurrency test verifies creation duplicates,
+  including the exact 409 envelope. The integrity category concentrates on atomic
+  multi-field PATCH rejection and the database unique index.
+- **Tombstones:** verify removal of cached author/content fields, anonymous reads,
+  and irreversible edits once, with an exact 409 expectation. Schema rejection of
+  client-supplied deletion state is separate from the tombstone invariant.
+- **Transaction observations:** shared helpers replace repeated recording/assertion
+  code, but each distinct resource mutation still has its own parameterized case.
+
+All existing rollback/concurrency assertions and parameter combinations were
+retained. The creation race additionally checks the duplicate-email error envelope
+previously repeated in the auth happy path. Shared instrumentation, request/event
+gates, and fixtures live in `account_support.py`; common HTTP auth helpers live
+in `auth_support.py`. Tests no longer import helpers from test modules.
 
 ## Run
 
-From the repository root, with the existing dependencies:
+From the repository root with the existing dependencies:
 
 ```sh
-# Unit checks; integration tests skip if no test URI exists in env or backend/.env.
+# All account categories (integration tests need a configured test URI).
 PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_account*.py -q
 
-# Full backend acceptance suite against a DISPOSABLE MongoDB replica set.
-TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' \
-  PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q \
+# One category, for example authorization.
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_account_authorization.py -q
+
+# Full backend regression suite; excludes Playwright browser tests.
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q \
   --ignore=backend/tests/test_frontend.py
 ```
 
-`backend/compose.yaml` provides a local replica set. The `api` fixture creates
-and drops an isolated `hearth_test_*` database, checks replica-set support at
-startup, and redirects resource services away from the development database.
-Never use production. Test database names fit Atlas's 38-byte limit. Set
-`TEST_MONGODB_URI` in the environment or `backend/.env` (environment wins); tests
-never use `MONGODB_URI` as a fallback. Unit-only success does **not** establish
-ACID behavior.
+Set `TEST_MONGODB_URI` in the environment or `backend/.env` (environment wins).
+Tests never fall back to `MONGODB_URI`. Use a **disposable development replica
+set**, never production: each fixture creates and drops its own `hearth_test_*`
+database. Names fit Atlas's 38-byte limit. Without a test URI, integration tests
+skip; schema/security/retry-control checks can still run.
 
-## Coverage and organization
-
-| Module | Distinct guarantees |
-| --- | --- |
-| `test_account_schemas.py` | Public allowlist/serializer, registration allowlist, password boundaries/Unicode, missing/null/wrong-type/extra input |
-| `test_account_api.py` | Public canonical creation without login; strict request envelopes; active identity on every route; current-password confirmation; partial/combined updates; name boundaries; normalization; duplicate-email atomicity; caller-only targets; session/cookie revocation; secret/log protection; retired routes; CORS |
-| `test_account_deletion.py` | Owned-board cascade, surviving replies/tasks/conversations, anonymous tombstones, multiple null list owners, unrelated-data isolation, fresh identity after email reuse, database uniqueness and startup indexes |
-| `test_account_resources.py` | Canonical BSON references, protected/initialized board counter, shared transactions across resource mutations, tombstone serialization/irreversibility, cached-data removal, protected authors, missing-message upserts, content/deletion races |
-| `test_account_races.py` | Concurrent duplicate registration/PATCH, stale identity/password/session rejection, other members' creation racing board deletion, stale writes after membership cleanup |
-| `test_account_failures.py` | Real post-write failure rollback for combined PATCH and every cleanup collection; all cleanup writes in one transaction |
-| `test_account_transactions.py` | Three-attempt limits; confirmed-abort retry; commit confirmation without replay; real committed-but-unconfirmed PATCH/DELETE; lost creation acknowledgement |
-
-All account routes are tested for missing/revoked sessions and disabled/deleted
-accounts. JWT syntax, tampering, expiry, expired sessions, issuer/audience, and
-key rotation are tested once through the shared auth dependency in
-`test_auth_api.py` and `test_security.py`, not repeated for every account route.
-Likewise, exhaustive password permutations belong at the schema/security layer;
-the API retains representative invalid-password checks and proves exact Unicode
-and whitespace preservation through stored Argon2id hashes.
-
-Concurrency cases cover each relevant mechanism and pending operation without
-an exhaustive Cartesian product. Event gates establish stale-identity ordering;
-concurrent requests exercise database write conflicts. Failure injection wraps
-real PyMongo writes and raises **after** them. Retry-control fakes establish
-counts/control flow only, not atomicity. Merely discarding a successful response
-is no longer a separate test: lost acknowledgement/commit tests already prove
-that a committed operation can have an uncertain result.
-
-## Connected content boundaries and resource regressions
-
-The speculative adapters were removed during condensation. Once concrete
-message, board-edit, and list-edit services existed, their checks were connected
-directly in `test_account_resources.py`; no speculative signatures or HTTP
-endpoints are required. All the formerly deferred content acceptance categories
-now have executable coverage:
-
-- Anonymous tombstone reads, retained replies, removal of cached author/content
-  fields, irreversible markers, protected authors, and non-upserting edits.
-- Message creation/edits racing account/parent-board deletion, with all mutation
-  writes sharing the same account/board transaction.
-- Other members' descendant edits racing owned-board deletion without recreating
-  deleted parents or data.
-
-`test_board.py`, `test_todo_list.py`, and `test_task.py` now use real authenticated
-transactions and canonical BSON references instead of unauthenticated legacy
-string-ID mocks. They cover scoped reads, list uniqueness, partial task updates,
-invalid/missing parents, owner-only management of retained ownerless lists, and
-membership edits racing account cleanup.
-
-The auth concurrency regression accepts only the documented `503 database_busy`
-when three attempts exhaust under contention; it still requires a successful
-transaction, unique session IDs, the exact session count implied by successful
-logins (capped at five), and strict one-winner refresh rotation.
+Real PyMongo writes are intercepted **after** they execute to prove transaction
+rollback, not just avoidance of writes. Event gates establish stale-identity
+ordering, and concurrent requests exercise database conflicts. Retry fakes prove
+control flow/counts only; a unit-only run does not establish ACID guarantees.
 
 ## Scope boundaries
 
-- Boards have one creator/owner and may have multiple members. Friend invites,
-  acceptance, and friend-list management are a separate feature.
-- Client retry/unknown-outcome UX and browser cookie processing are not proven
-  by backend tests. No safe replay of ambiguously delivered requests is promised.
-- Idempotency, rate limiting, deletion load/capacity tests, and frontend work are
-  deferred. No migrations or compatibility routes are included.
-- Fixtures use BSON ObjectIds, a `deleted: true` tombstone marker, nullable
-  author/list-owner references, and millisecond-precision BSON datetimes.
+- Internal message/board-edit/list-edit services are tested without inventing
+  additional HTTP endpoints or a friend-invitation workflow.
+- `test_board.py`, `test_todo_list.py`, and `test_task.py` additionally cover scoped
+  reads, resource permissions, partial task updates, owner-only management of
+  retained ownerless lists, and membership edits racing account cleanup.
+- The auth concurrency regression permits only documented `503 database_busy`
+  failures when three attempts exhaust, while preserving unique sessions, the
+  five-session cap, and strict one-winner refresh rotation.
+- Client retry UX, browser cookie processing, rate limiting, idempotency, deletion
+  capacity/load testing, and frontend work remain outside this backend suite.

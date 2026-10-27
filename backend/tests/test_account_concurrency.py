@@ -1,36 +1,21 @@
-"""Real replica-set concurrency tests with bounded, deterministic race gates."""
+"""Account contracts: concurrency."""
 
 import asyncio
-from contextvars import ContextVar
 
-import httpx
 import pytest
-from pymongo.asynchronous.collection import AsyncCollection
+from app.services.auth import AuthError
 
-from tests.account_support import ME, NEW_PASSWORD, USERS, create_account
-from tests.test_auth_api import PASSWORD, call
-
-REQUEST_TIMEOUT = 20
-race_request = ContextVar("account_race_request", default=False)
-
-
-async def request(app, method, path, *, payload=None, headers=None, gated=False):
-    token = race_request.set(gated)
-    try:
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(
-            transport=transport,
-            base_url="https://api.example.com",
-            timeout=REQUEST_TIMEOUT,
-        ) as client:
-            return await client.request(
-                method,
-                path,
-                json=payload,
-                headers={"Origin": "https://app.example.com", **(headers or {})},
-            )
-    finally:
-        race_request.reset(token)
+from tests.account_support import (
+    ME,
+    NEW_PASSWORD,
+    REQUEST_TIMEOUT,
+    USERS,
+    create_account,
+    gate_first_user_read,
+    request,
+    service_identity,
+)
+from tests.auth_support import PASSWORD, call
 
 
 def test_concurrent_normalized_creations_have_one_winner(api):
@@ -56,6 +41,11 @@ def test_concurrent_normalized_creations_have_one_winner(api):
     assert sorted(r.status_code for r in responses) == [201, 409], [
         r.text for r in responses
     ]
+    duplicate = next(response for response in responses if response.status_code == 409)
+    assert duplicate.json()["error"] == {
+        "code": "email_exists",
+        "message": "An account with this email already exists.",
+    }
     assert call(http, db.users.count_documents, {"email": "race@example.com"}) == 1
     assert call(http, db.sessions.count_documents, {}) == 0
 
@@ -102,38 +92,6 @@ def test_concurrent_email_updates_have_one_winner_and_no_partial_loser(api, acco
             assert count == 1
 
 
-def gate_first_user_read(monkeypatch, db_name):
-    """Pause after an old account snapshot is read, before mutation checks.
-
-    ContextVar survives Starlette middleware task boundaries. No sleeps are used
-    to guess when a request is authenticated.
-    """
-    original = AsyncCollection.find_one
-    waiting, proceed = asyncio.Event(), asyncio.Event()
-    hit = False
-
-    async def gated(collection, *args, **kwargs):
-        nonlocal hit
-        result = await original(collection, *args, **kwargs)
-        if (
-            race_request.get()
-            and not hit
-            and collection.database.name == db_name
-            and collection.name == "users"
-            and result
-            and kwargs.get("session") is None
-        ):
-            hit = True
-            waiting.set()
-            await asyncio.wait_for(proceed.wait(), timeout=REQUEST_TIMEOUT)
-        return result
-
-    monkeypatch.setattr(AsyncCollection, "find_one", gated)
-    return waiting, proceed
-
-
-# Cover each revocation mechanism and each pending operation, not their full
-# Cartesian product. Login/disable serialization also has existing auth tests.
 @pytest.mark.parametrize(
     "pending,winner",
     [
@@ -307,3 +265,101 @@ def test_stale_member_write_on_surviving_board_is_rejected_after_membership_clea
     response = call(http, race)
     assert response.status_code == 401, response.text
     assert call(http, db.tasks.count_documents, {"title": "deleted member write"}) == 0
+
+
+@pytest.mark.parametrize("operation", ["create_message", "update_message"])
+def test_message_writes_coordinate_with_account_deletion(api, account_graph, operation):
+    from app.services import message
+
+    from tests.account_support import REQUEST_TIMEOUT, request
+    from tests.auth_support import PASSWORD
+
+    http, db = api
+    account, other, graph = account_graph
+    # Creation by another member races parent-board deletion. Editing by the
+    # author races their own deletion on a surviving board.
+    actor = other if operation == "create_message" else account
+    target = (
+        graph["owned_list"]
+        if operation == "create_message"
+        else graph["deleted_message"]
+    )
+    identity = service_identity(http, db, actor)
+    handler = getattr(message, operation)
+
+    async def race():
+        return await asyncio.wait_for(
+            asyncio.gather(
+                handler(
+                    str(target),
+                    {"message": "racing content"},
+                    identity=identity,
+                    database=db,
+                ),
+                request(
+                    http.app,
+                    "DELETE",
+                    "/api/v1/users/me",
+                    payload={"current_password": PASSWORD},
+                    headers=account["headers"],
+                ),
+                return_exceptions=True,
+            ),
+            timeout=REQUEST_TIMEOUT,
+        )
+
+    written, deleted = call(http, race)
+    assert not isinstance(deleted, BaseException), repr(deleted)
+    assert deleted.status_code == 204, deleted.text
+    if isinstance(written, BaseException):
+        assert isinstance(written, AuthError), repr(written)
+        assert written.status in (401, 403, 404, 503)
+    assert call(http, db.messages.count_documents, {"message": "racing content"}) == 0
+    assert call(http, db.messages.count_documents, {"listID": graph["owned_list"]}) == 0
+
+
+@pytest.mark.parametrize("resource", ["task", "list"])
+def test_other_member_edits_racing_board_deletion_cannot_recreate_data(
+    api, account_graph, resource
+):
+    from app.services.task import update_task
+    from app.services.todo_list import update_todo_list
+
+    from tests.account_support import REQUEST_TIMEOUT, request
+    from tests.auth_support import PASSWORD
+
+    http, db = api
+    account, other, graph = account_graph
+    identity = service_identity(http, db, other)
+    handler = update_task if resource == "task" else update_todo_list
+    target = graph["owned_task"] if resource == "task" else graph["owned_list"]
+
+    async def race():
+        return await asyncio.wait_for(
+            asyncio.gather(
+                handler(
+                    str(target),
+                    {"title": "not recreated"},
+                    identity=identity,
+                    database=db,
+                ),
+                request(
+                    http.app,
+                    "DELETE",
+                    "/api/v1/users/me",
+                    payload={"current_password": PASSWORD},
+                    headers=account["headers"],
+                ),
+                return_exceptions=True,
+            ),
+            timeout=REQUEST_TIMEOUT,
+        )
+
+    edited, deleted = call(http, race)
+    assert not isinstance(deleted, BaseException), repr(deleted)
+    assert deleted.status_code == 204, deleted.text
+    if isinstance(edited, BaseException):
+        assert isinstance(edited, AuthError), repr(edited)
+        assert edited.status in (401, 403, 404, 503)
+    assert call(http, db.tasks.find_one, {"_id": graph["owned_task"]}) is None
+    assert call(http, db.todo_lists.find_one, {"_id": graph["owned_list"]}) is None

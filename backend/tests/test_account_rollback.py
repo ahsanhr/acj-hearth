@@ -1,8 +1,4 @@
-"""Retry control-flow unit tests plus real committed-but-unconfirmed writes.
-
-The fakes below establish retry counts only, NOT ACID. Rollback and concurrency
-are covered separately against a disposable MongoDB replica set.
-"""
+"""Account contracts: rollback."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock
@@ -13,8 +9,14 @@ from pymongo.asynchronous.client_session import AsyncClientSession
 from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import AutoReconnect, OperationFailure
 
-from tests.account_support import USERS, mutate
-from tests.test_auth_api import PASSWORD, call
+from tests.account_support import (
+    NEW_PASSWORD,
+    USERS,
+    intercept_writes,
+    mutate,
+    snapshot,
+)
+from tests.auth_support import PASSWORD, call
 
 UNKNOWN_MESSAGE = (
     "Unable to confirm whether account creation, update, or deletion completed. "
@@ -61,6 +63,84 @@ class RetryDatabase:
         session = RetrySession(self.commit_failures)
         self.opened.append(session)
         yield session
+
+
+@pytest.mark.parametrize("stage", ["user_update", "session_revocation"])
+def test_combined_patch_rolls_back_user_and_sessions_after_write_failure(
+    api, account, monkeypatch, stage
+):
+    http, db = api
+    before = snapshot(http, db)
+    injected = []
+
+    async def fail(collection, method, args, kwargs):
+        submitted_update = repr(args[1:])
+        target = (
+            stage == "user_update"
+            and collection == "users"
+            and "password_hash" in submitted_update
+            or stage == "session_revocation"
+            and collection == "sessions"
+            and method.startswith("delete")
+        )
+        if target:
+            assert kwargs.get("session") is not None, (
+                "Account writes must participate in a transaction"
+            )
+            injected.append(collection)
+            raise OperationFailure("injected after account write", code=12345)
+
+    intercept_writes(monkeypatch, db.name, fail)
+    response = mutate(
+        http,
+        payload={
+            "name": "Rollback",
+            "email": "rollback@example.com",
+            "new_password": NEW_PASSWORD,
+            "current_password": PASSWORD,
+        },
+        account=account,
+    )
+    assert injected, f"The {stage} failure injection was not reached"
+    assert response.status_code == 503, response.text
+    assert response.json()["error"]["code"] == "database_unavailable"
+    assert snapshot(http, db) == before
+    assert "set-cookie" not in response.headers
+
+
+@pytest.mark.parametrize(
+    "stage", ["boards", "todo_lists", "tasks", "messages", "sessions", "users"]
+)
+def test_each_deletion_cleanup_stage_rolls_back_all_collections(
+    api, account_graph, monkeypatch, stage
+):
+    http, db = api
+    account, _, _ = account_graph
+    before = snapshot(http, db)
+    injected = []
+
+    async def fail(collection, method, args, kwargs):
+        if collection == stage and not (
+            method == "find_one_and_update" and collection == "users"
+        ):
+            # Skip account/board coordination writes: inject at actual cleanup.
+            if collection == "boards" and not method.startswith("delete"):
+                return
+            if collection == "users" and not method.startswith("delete"):
+                return
+            assert kwargs.get("session") is not None
+            injected.append((collection, method))
+            raise OperationFailure("injected cleanup failure", code=12345)
+
+    intercept_writes(monkeypatch, db.name, fail)
+    response = mutate(
+        http, method="DELETE", payload={"current_password": PASSWORD}, account=account
+    )
+    assert injected, f"No cleanup write reached for {stage}"
+    assert response.status_code == 503, response.text
+    assert response.json()["error"]["code"] == "database_unavailable"
+    assert snapshot(http, db) == before
+    assert "set-cookie" not in response.headers
 
 
 @pytest.mark.asyncio

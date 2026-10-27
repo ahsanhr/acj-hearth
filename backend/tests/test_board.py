@@ -6,9 +6,14 @@ import pytest
 from app.services.auth import AuthError
 from app.services.board import update_board
 
-from tests.account_support import create_account, service_identity, snapshot
-from tests.test_account_races import REQUEST_TIMEOUT, request
-from tests.test_auth_api import PASSWORD, call
+from tests.account_support import (
+    REQUEST_TIMEOUT,
+    create_account,
+    request,
+    service_identity,
+    snapshot,
+)
+from tests.auth_support import PASSWORD, call
 
 
 @pytest.mark.parametrize("include_owner", [False, True])

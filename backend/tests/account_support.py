@@ -1,12 +1,16 @@
 """Shared account contract fixtures; all persisted state uses the real replica set."""
 
+import asyncio
+from contextvars import ContextVar
 from copy import deepcopy
 
+import httpx
 from app.api.v1.endpoints.auth import COOKIE_NAME
 from app.core.security import utcnow
 from bson import ObjectId
+from pymongo.asynchronous.collection import AsyncCollection
 
-from tests.test_auth_api import PASSWORD, call
+from tests.auth_support import PASSWORD, call
 
 USERS = "/api/v1/users"
 ME = f"{USERS}/me"
@@ -177,3 +181,104 @@ def seed_graph(http, db, owner, other):
         "reply": reply,
         "documents": documents,
     }
+
+
+WRITE_METHODS = (
+    "insert_one",
+    "insert_many",
+    "update_one",
+    "update_many",
+    "replace_one",
+    "find_one_and_update",
+    "find_one_and_delete",
+    "delete_one",
+    "delete_many",
+    "bulk_write",
+)
+
+
+def intercept_writes(monkeypatch, database_name, hook):
+    """Run hook after the actual write, while its transaction is still open."""
+    for name in WRITE_METHODS:
+        original = getattr(AsyncCollection, name)
+
+        async def wrapped(collection, *args, _name=name, _original=original, **kwargs):
+            result = await _original(collection, *args, **kwargs)
+            if collection.database.name == database_name:
+                await hook(collection.name, _name, args, kwargs)
+            return result
+
+        monkeypatch.setattr(AsyncCollection, name, wrapped)
+
+
+def transaction_writes(monkeypatch, database_name):
+    """Record actual writes and require a live MongoDB transaction for each."""
+    writes = []
+
+    async def record(collection, method, args, kwargs):
+        session = kwargs.get("session")
+        assert session is not None and session.in_transaction, (collection, method)
+        writes.append((collection, repr(session.session_id), session._transaction_id))
+
+    intercept_writes(monkeypatch, database_name, record)
+    return writes
+
+
+def assert_one_transaction(writes, collections):
+    assert {collection for collection, _, _ in writes} >= set(collections)
+    assert len({(sid, tid) for _, sid, tid in writes}) == 1
+
+
+REQUEST_TIMEOUT = 20
+
+
+race_request = ContextVar("account_race_request", default=False)
+
+
+async def request(app, method, path, *, payload=None, headers=None, gated=False):
+    token = race_request.set(gated)
+    try:
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport,
+            base_url="https://api.example.com",
+            timeout=REQUEST_TIMEOUT,
+        ) as client:
+            return await client.request(
+                method,
+                path,
+                json=payload,
+                headers={"Origin": "https://app.example.com", **(headers or {})},
+            )
+    finally:
+        race_request.reset(token)
+
+
+def gate_first_user_read(monkeypatch, db_name):
+    """Pause after an old account snapshot is read, before mutation checks.
+
+    ContextVar survives Starlette middleware task boundaries. No sleeps are used
+    to guess when a request is authenticated.
+    """
+    original = AsyncCollection.find_one
+    waiting, proceed = asyncio.Event(), asyncio.Event()
+    hit = False
+
+    async def gated(collection, *args, **kwargs):
+        nonlocal hit
+        result = await original(collection, *args, **kwargs)
+        if (
+            race_request.get()
+            and not hit
+            and collection.database.name == db_name
+            and collection.name == "users"
+            and result
+            and kwargs.get("session") is None
+        ):
+            hit = True
+            waiting.set()
+            await asyncio.wait_for(proceed.wait(), timeout=REQUEST_TIMEOUT)
+        return result
+
+    monkeypatch.setattr(AsyncCollection, "find_one", gated)
+    return waiting, proceed

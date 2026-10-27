@@ -7,7 +7,7 @@ from app.services.todo_list import update_todo_list
 from bson import ObjectId
 
 from tests.account_support import create_account, mutate, service_identity, snapshot
-from tests.test_auth_api import PASSWORD, call
+from tests.auth_support import PASSWORD, call
 
 
 def test_create_read_and_duplicate_list_are_atomic(api, account_graph):

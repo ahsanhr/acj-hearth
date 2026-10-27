@@ -4,7 +4,7 @@ import pytest
 from bson import ObjectId
 
 from tests.account_support import create_account, snapshot
-from tests.test_auth_api import call
+from tests.auth_support import call
 
 
 def test_create_and_read_task_preserves_date_and_relationship(api, account_graph):
