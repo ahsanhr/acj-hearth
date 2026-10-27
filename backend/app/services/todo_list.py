@@ -1,65 +1,76 @@
 from bson import ObjectId
-from bson.errors import InvalidId
-from fastapi import HTTPException
 from pymongo.errors import DuplicateKeyError
 
 from app.core.database import db
-from app.schemas.todo_list import TodoListCreate
+from app.schemas.todo_list import TodoListCreate, TodoListUpdate
+from app.services.auth import AuthError
+from app.services.resources import (
+    ResourceAccess,
+    parse_changes,
+    parse_id,
+    public_document,
+    require_list_manager,
+)
 
 
-async def create_todo_list(board_id: str, todo_list: TodoListCreate):
-    try:
-        board_object_id = ObjectId(board_id)
-    except (InvalidId, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid board ID")
-
-    board = await db["boards"].find_one({"_id": board_object_id})
-
-    if board is None:
-        raise HTTPException(status_code=404, detail="Board not found")
-
-    if todo_list.ownerID not in board.get("members", []):
-        raise HTTPException(
-            status_code=403,
-            detail="User is not a member of this board"
-        )
-
-    list_data = {
+async def create_todo_list(
+    board_id: str, todo_list: TodoListCreate, *, identity, database=None
+):
+    board_id = parse_id(board_id)
+    database = db if database is None else database
+    access = ResourceAccess(database)
+    data = {
+        "_id": ObjectId(),
         "boardID": board_id,
-        "ownerID": todo_list.ownerID,
-        "title": todo_list.title,
+        **todo_list.model_dump(),
         "tasks": [],
-        "messages": []
+        "messages": [],
     }
 
+    async def create(tx):
+        actor = await access.actor(identity, tx)
+        board = await access.board(board_id, actor, tx)
+        if data["ownerID"] != actor:
+            raise AuthError(403, "forbidden", "Create lists only for your own account.")
+        if actor not in board["members"]:
+            raise AuthError(403, "forbidden", "Board membership is required.")
+        await database.todo_lists.insert_one(dict(data), session=tx)
+        return public_document(data)
+
     try:
-        result = await db["todo_lists"].insert_one(list_data)
-    except DuplicateKeyError:
-        raise HTTPException(
-            status_code=409,
-            detail="User already has a to-do list in this board"
+        return await access.auth.transaction(create)
+    except DuplicateKeyError as exc:
+        raise AuthError(
+            409, "list_exists", "User already has a to-do list in this board."
+        ) from exc
+
+
+async def get_board_todo_lists(board_id: str, *, identity, database=None):
+    board_id = parse_id(board_id)
+    database = db if database is None else database
+    access = ResourceAccess(database)
+    actor = await access.actor(identity, write=False)
+    await access.board(board_id, actor, write=False)
+    return [
+        public_document(row)
+        async for row in database.todo_lists.find({"boardID": board_id})
+    ]
+
+
+async def update_todo_list(list_id, changes, *, identity, database=None):
+    list_id = parse_id(list_id)
+    database = db if database is None else database
+    access = ResourceAccess(database)
+    payload = parse_changes(TodoListUpdate, changes)
+    fields = payload.model_dump()
+
+    async def update(tx):
+        actor = await access.actor(identity, tx)
+        todo_list, board = await access.todo_list(list_id, actor, tx)
+        require_list_manager(board, todo_list, actor)
+        await database.todo_lists.update_one(
+            {"_id": list_id}, {"$set": fields}, session=tx
         )
+        return public_document({**todo_list, **fields})
 
-    list_data["_id"] = str(result.inserted_id)
-
-    return list_data
-
-
-async def get_board_todo_lists(board_id: str):
-    try:
-        board_object_id = ObjectId(board_id)
-    except (InvalidId, TypeError):
-        raise HTTPException(status_code=400, detail="Invalid board ID")
-
-    board = await db["boards"].find_one({"_id": board_object_id})
-
-    if board is None:
-        raise HTTPException(status_code=404, detail="Board not found")
-
-    todo_lists = []
-
-    async for todo_list in db["todo_lists"].find({"boardID": board_id}):
-        todo_list["_id"] = str(todo_list["_id"])
-        todo_lists.append(todo_list)
-
-    return todo_lists
+    return await access.auth.transaction(update)
