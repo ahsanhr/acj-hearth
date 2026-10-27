@@ -9,42 +9,69 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Just+Another+Hand&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/modal.css" />
+
 </head>
 <body>
-    <main id = "board" class = "board-frame">
-        <div class="header-tag"><h1>Example's Hearth</h1></div>
+    <main>
+        <div class="header-tag"><h1><span id="board-owner-name">Example</span>'s Hearth</h1></div>
         <div class="sticky-note note-green" style="top:7%; left:62%"><h1>10/26</h1></div>
         <div class="sticky-note note-orange" style="top: 20%; left: 15%;"></div>
         <div class="sticky-note note-yellorange" style="top: 65%; left: 35%;"></div>
-        <div class="sticky-note note-blue"   style="top: 25%; right: 12%;"></div>
+        <div class="sticky-note note-blue" style="top: 25%; right: 12%;"></div>
     </main>
 
-    <dialog>
+    <dialog id="modal-view">
         <div class="pin pin-red"></div>
-        <section id="view-welcome" class="modal-view">
-            <h1 class="paper-title">Welcome to Hearth!</h1>
-            <p class="paper-subtitle">hearth is shared productivity made fun and simple!</p>
+        <section id="view-welcome">
+            <h1>Welcome to Hearth!</h1>
+            <h2>hearth is a shared productivity made fun and simple!</h2>
             <div class="button-row">
                 <button type="button" id="btn-goto-login" class="pill-btn">login</button>
                 <button type="button" id="btn-goto-signup" class="pill-btn">sign up</button>
             </div>
         </section>
 
-        <section id="view-login" class="modal-view" hidden>
-          <h2 class="paper-title">Login:</h2>
-          <form id="form-login" class="auth-form">
+        <section id="view-login" hidden>
+          <h1>Login:</h1>
+          <form id="form-login" class="login-signup-forms">
+
             <label for="login-email">email:</label>
             <input type="email" id="login-email" name="email" required autocomplete="email" />
 
             <label for="login-password">password:</label>
             <input type="password" id="login-password" name="password" required autocomplete="current-password" />
-
-            <button type="submit" class="pill-btn submit-btn">enter</button>
+            <div class="button-row">
+                <button type="submit" class="pill-btn submit-btn">enter</button>
+                <button type="button" id="btn-login-back-welcome" class="pill-btn">back</button>
+            </div>
           </form>
         </section>
-        <section id="view-welcome-back" class="modal-view" hidden>
-          <h2 class="paper-title">Welcome Back <span id="user-display-name">[NAME]</span>!</h2>
-          <button type="button" id="btn-enter-hearth" class="pill-btn wide-btn">Enter Your Hearth</button>
+
+        <section id="view-signup" hidden>
+          <h1>Sign Up:</h1>
+          <form id="form-signup" class="login-signup-forms">
+            <label for="signup-name">name:</label>
+            <input type="text" id="signup-name"  />
+
+            <label for="signup-email">email:</label>
+            <input type="email" id="signup-email" name="email" required autocomplete="email" />
+
+            <label for="signup-password">password:</label>
+            <input type="password" id="signup-password" name="password" required autocomplete="current-password" />
+            <div class="button-row">
+              <button type="submit" class="pill-btn submit-btn">enter</button>
+              <button type="button" id="btn-signup-back-welcome" class="pill-btn">back</button>
+            </div>
+
+          </form>
+        </section>
+
+        <section id="view-welcome-back" hidden>
+          <h1>Welcome Back <span id="user-display-name">[NAME]</span>!</h1>
+        <div class="button-row">
+            <button type="button" id="btn-enter-hearth" class="pill-btn wide-btn">enter</button>
+        </div>
         </section>
     </dialog>
 

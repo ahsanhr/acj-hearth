@@ -15,19 +15,15 @@
     --board_color: #000000;
     --overlay_black: rgba(0, 0, 0, 0.65);
 
-    --font-heading: 5rem;
+    --font-heading: 5.5rem;
     --font-subheading: 2.5rem;
     --font-body: 1.5rem;
 }
-
-.header-tag{
-    background-color: var(--paper_cream);
-    margin: 1% 35%;
-    box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.25);
-}
-
 .sticky-note {
   position: absolute;
+    display: flex;
+  justify-content: center;
+
   width: 150px;
   height: 150px;
   background-color: var(--note-color, var(--sticky_note_pale_yellow));
@@ -40,15 +36,22 @@
 .note-red  { --note-color: var(--sticky_note_red); }
 
 .pin {
-    position: absolute;;
+    margin: 0 auto;
     width: 25px;
     height: 25px;
     background-color: var(--pin-color, var(--pin_red));
+    top: 2%;
+    border-radius: 9999px;
 }
 .pin-blue {--pin-color: var(--pin_blue)}
 .pin-yellow {--pin-color: var(--pin_yellow)}
 .pin-green {--pin-color: var(--pin_green)}
 
+.header-tag{
+    background-color: var(--paper_cream);
+    margin: 1% 35%;
+    box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.25);
+}
 
 body {
     background-color: var(--corkboard);
@@ -58,31 +61,18 @@ body {
     line-height: 1.3;
 }
 
+
 h1 {
     font-size: var(--font-heading);
-    font-weight: 700;
+    font-weight: 500;
     text-align: center;
 }
 h2 {
     font-size: var(--font-subheading);
-    font-weight: 400;
+    font-weight: 350;
     text-align: center;
 }
 p {
     font-size: var(--font-body);
 }
-
-.overlay {
-  position: fixed;
-  inset: 0;
-  background-color: var(--overlay_black);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-.overlay.hidden {
-    display: none;
-}
-
 
