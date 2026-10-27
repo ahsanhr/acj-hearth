@@ -9,14 +9,14 @@ from pymongo.asynchronous.client_session import AsyncClientSession
 from pymongo.asynchronous.collection import AsyncCollection
 from pymongo.errors import AutoReconnect, OperationFailure
 
-from tests.account_support import (
+from tests.support.accounts import (
     NEW_PASSWORD,
     USERS,
     intercept_writes,
     mutate,
     snapshot,
 )
-from tests.auth_support import PASSWORD, call
+from tests.support.auth import PASSWORD, call
 
 UNKNOWN_MESSAGE = (
     "Unable to confirm whether account creation, update, or deletion completed. "

@@ -4,7 +4,7 @@ import pytest
 from app.schemas.user import Registration
 from pydantic import ValidationError
 
-from tests.auth_support import PASSWORD, call, login, register
+from tests.support.auth import PASSWORD, call, login, register
 
 
 def test_login_errors_and_validation_do_not_echo_password(api):

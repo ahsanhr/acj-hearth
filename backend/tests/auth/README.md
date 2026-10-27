@@ -1,26 +1,25 @@
 # Authentication and session test organization
 
 The auth/session/security suite uses the same categories as the
-[account tests](ACCOUNT_TESTS.md). It contains **25 cases in five modules**, down
-from 27 overlapping examples in `test_auth_api.py`, `test_auth_races.py`, and
-`test_security.py`. Distinct security mechanisms were not collapsed into generic
-"negative" tests.
+[account tests](../accounts/README.md). It contains **25 cases in five modules**,
+down from 27 overlapping examples in the former flat auth/security modules.
+Distinct security mechanisms were not collapsed into generic "negative" tests.
 
 ## Categories
 
 | Category / module | Cases | Guarantees |
 | --- | ---: | --- |
-| Happy paths — `test_auth_happy_paths.py` | 1 | Login without email verification, normalized credentials, secure refresh-cookie attributes, JWT/session/user linkage, hashed refresh storage, fixed lifetime, safe session listing, and accepted bearer authentication |
-| Invalid inputs — `test_auth_invalid_inputs.py` | 4 | Wrong-password/unknown-email failures are indistinguishable and create no session; username-based login fails safely; missing password-policy digit/symbol classes fail; missing signing secret fails closed |
-| Authorization — `test_auth_authorization.py` | 11 | Expired access vs. session expiration; disabled/deleted accounts including externally restored sessions; Origin enforcement; missing/malformed/tampered/mismatched JWTs; issuer, audience, required session claim, signing algorithms, keys, and key rotation |
-| Data integrity — `test_auth_data_integrity.py` | 4 | One-time refresh rotation and replay rejection without extending lifetime; current-session-only/idempotent logout; oldest-session eviction, foreign-session isolation, individual/all-owned-session closure; Argon2id verification; unique JWT IDs and session-capped expiration |
-| Concurrency — `test_auth_concurrency.py` | 5 | Concurrent login session cap with bounded-contention errors; one-winner refresh rotation; login racing password change/disable/deletion; logout racing refresh |
+| Happy paths - `test_happy_paths.py` | 1 | Login without email verification, normalized credentials, secure refresh-cookie attributes, JWT/session/user linkage, hashed refresh storage, fixed lifetime, safe session listing, and accepted bearer authentication |
+| Invalid inputs - `test_invalid_inputs.py` | 4 | Wrong-password/unknown-email failures are indistinguishable and create no session; username-based login fails safely; missing password-policy digit/symbol classes fail; missing signing secret fails closed |
+| Authorization - `test_authorization.py` | 11 | Expired access vs. session expiration; disabled/deleted accounts including externally restored sessions; Origin enforcement; missing/malformed/tampered/mismatched JWTs; issuer, audience, required session claim, signing algorithms, keys, and key rotation |
+| Data integrity - `test_data_integrity.py` | 4 | One-time refresh rotation and replay rejection without extending lifetime; current-session-only/idempotent logout; oldest-session eviction, foreign-session isolation, individual/all-owned-session closure; Argon2id verification; unique JWT IDs and session-capped expiration |
+| Concurrency - `test_concurrency.py` | 5 | Concurrent login session cap with bounded-contention errors; one-winner refresh rotation; login racing password change/disable/deletion; logout racing refresh |
 
 **Rollback is shared, not duplicated.** The existing 18 cases in
-`test_account_rollback.py` exercise the shared `AuthService.transaction` retry and
-commit-confirmation mechanism, plus real account/session rollback during PATCH
-and deletion. Those cases remain separate and unchanged. This refactor does not
-claim new failure-injection coverage for session creation/refresh specifically.
+`../accounts/test_rollback.py` exercise the shared `AuthService.transaction` retry
+and commit-confirmation mechanism, plus real account/session rollback during
+PATCH and deletion. Those cases remain separate and unchanged. This refactor does
+not claim new failure-injection coverage for session creation/refresh specifically.
 
 ## What was deduplicated
 
@@ -49,7 +48,7 @@ Issuer vs. audience and wrong algorithm vs. wrong signature stay separate cases.
 
 ## Shared helpers and running
 
-`auth_support.py` owns HTTP login/registration helpers, test credentials, portal
+`../support/auth.py` owns HTTP login/registration helpers, test credentials, portal
 calls, and JWT session fixtures. Account and resource tests import those helpers
 directly rather than importing a test module. No application logic changed.
 
@@ -57,14 +56,14 @@ From the repository root:
 
 ```sh
 # Authentication/session/security categories.
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_auth*.py -q
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/auth -q
 
 # Shared rollback/retry checks.
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/test_account_rollback.py -q
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/accounts/test_rollback.py -q
 
 # Complete backend suite, excluding browser tests.
 PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q \
-  --ignore=backend/tests/test_frontend.py
+  --ignore=backend/tests/frontend
 ```
 
 Integration tests require `TEST_MONGODB_URI` in the environment or `backend/.env`.

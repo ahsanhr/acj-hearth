@@ -9,7 +9,7 @@ from app.core.security import (
 )
 from bson import ObjectId
 
-from tests.auth_support import EMAIL, authorize, call, login, register
+from tests.support.auth import EMAIL, authorize, call, login, register
 
 
 def test_login_issues_secure_cookie_and_session_linked_access_token(api):

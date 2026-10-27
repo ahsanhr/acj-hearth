@@ -6,7 +6,7 @@ from threading import Thread
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
-FRONTEND_PATH = Path(__file__).resolve().parents[2] / "frontend"
+FRONTEND_PATH = Path(__file__).resolve().parents[3] / "frontend"
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ from app.core.security import PASSWORD_HASHER, verify_password
 from app.schemas.user import AccountPatch, Registration
 from bson import ObjectId
 
-from tests.account_support import (
+from tests.support.accounts import (
     ME,
     NEW_PASSWORD,
     USERS,
@@ -16,7 +16,7 @@ from tests.account_support import (
     public_response,
     snapshot,
 )
-from tests.auth_support import PASSWORD, call
+from tests.support.auth import PASSWORD, call
 
 
 def test_public_creation_is_canonical_and_does_not_login(api):

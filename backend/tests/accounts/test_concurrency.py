@@ -5,7 +5,7 @@ import asyncio
 import pytest
 from app.services.auth import AuthError
 
-from tests.account_support import (
+from tests.support.accounts import (
     ME,
     NEW_PASSWORD,
     REQUEST_TIMEOUT,
@@ -15,7 +15,7 @@ from tests.account_support import (
     request,
     service_identity,
 )
-from tests.auth_support import PASSWORD, call
+from tests.support.auth import PASSWORD, call
 
 
 def test_concurrent_normalized_creations_have_one_winner(api):
@@ -271,8 +271,8 @@ def test_stale_member_write_on_surviving_board_is_rejected_after_membership_clea
 def test_message_writes_coordinate_with_account_deletion(api, account_graph, operation):
     from app.services import message
 
-    from tests.account_support import REQUEST_TIMEOUT, request
-    from tests.auth_support import PASSWORD
+    from tests.support.accounts import REQUEST_TIMEOUT, request
+    from tests.support.auth import PASSWORD
 
     http, db = api
     account, other, graph = account_graph
@@ -325,8 +325,8 @@ def test_other_member_edits_racing_board_deletion_cannot_recreate_data(
     from app.services.task import update_task
     from app.services.todo_list import update_todo_list
 
-    from tests.account_support import REQUEST_TIMEOUT, request
-    from tests.auth_support import PASSWORD
+    from tests.support.accounts import REQUEST_TIMEOUT, request
+    from tests.support.auth import PASSWORD
 
     http, db = api
     account, other, graph = account_graph

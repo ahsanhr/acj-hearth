@@ -12,7 +12,7 @@ from app.core.security import (
 from bson import ObjectId
 from pydantic import SecretStr
 
-from tests.auth_support import (
+from tests.support.auth import (
     EMAIL,
     PASSWORD,
     authorize,

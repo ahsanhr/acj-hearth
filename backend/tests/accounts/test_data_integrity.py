@@ -17,7 +17,7 @@ from app.services.auth import AuthError
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 
-from tests.account_support import (
+from tests.support.accounts import (
     ME,
     NEW_PASSWORD,
     PUBLIC_FIELDS,
@@ -31,7 +31,7 @@ from tests.account_support import (
     snapshot,
     transaction_writes,
 )
-from tests.auth_support import PASSWORD, call
+from tests.support.auth import PASSWORD, call
 
 
 def test_request_and_public_schemas_allow_only_agreed_fields():

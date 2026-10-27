@@ -5,8 +5,8 @@ from app.schemas.message import MessageUpdate
 from app.schemas.user import AccountPatch, Registration
 from pydantic import ValidationError
 
-from tests.account_support import ME, USERS, VALIDATION_ERROR, mutate, snapshot
-from tests.auth_support import PASSWORD, call
+from tests.support.accounts import ME, USERS, VALIDATION_ERROR, mutate, snapshot
+from tests.support.auth import PASSWORD, call
 
 
 @pytest.mark.parametrize(

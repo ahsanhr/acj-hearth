@@ -6,7 +6,7 @@ import pytest
 from app.schemas.user import AccountPatch
 from app.services.auth import AuthError
 
-from tests.auth_support import (
+from tests.support.auth import (
     EMAIL,
     PASSWORD,
     authorize,

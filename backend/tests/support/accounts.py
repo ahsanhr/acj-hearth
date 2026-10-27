@@ -10,7 +10,7 @@ from app.core.security import utcnow
 from bson import ObjectId
 from pymongo.asynchronous.collection import AsyncCollection
 
-from tests.auth_support import PASSWORD, call
+from tests.support.auth import PASSWORD, call
 
 USERS = "/api/v1/users"
 ME = f"{USERS}/me"

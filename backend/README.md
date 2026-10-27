@@ -100,17 +100,19 @@ Index setup enforces unique normalized email, removes obsolete legacy-field inde
 
 Account and auth/session tests are organized by happy paths, invalid inputs,
 authorization, and data integrity, with separate concurrency and shared rollback
-coverage. See [account tests](tests/ACCOUNT_TESTS.md) and
-[auth/session tests](tests/AUTH_TESTS.md) for coverage ownership and focused commands.
+coverage. Tests are grouped by feature under `tests/`, with helpers in
+`tests/support/`. See the [test layout](tests/README.md),
+[account tests](tests/accounts/README.md), and
+[auth/session tests](tests/auth/README.md) for coverage and focused commands.
 
 ```sh
 cd backend
-.venv/bin/python -m pytest -q --ignore=tests/test_frontend.py
+.venv/bin/python -m pytest -q --ignore=tests/frontend
 # Include real transaction/concurrency/API tests:
-TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q --ignore=tests/test_frontend.py
+TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q --ignore=tests/frontend
 ```
 
-The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/test_frontend.py`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for async retry-control tests.
+The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/frontend`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for async retry-control tests.
 
 Run the complete suite, including authentication transaction/concurrency tests and browser tests, from the repository root:
 

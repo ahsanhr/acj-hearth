@@ -23,14 +23,14 @@ def auth_settings():
 
 @pytest.fixture
 def account(api):
-    from tests.account_support import create_account
+    from tests.support.accounts import create_account
 
     return create_account(*api)
 
 
 @pytest.fixture
 def account_graph(api, account):
-    from tests.account_support import create_account, seed_graph
+    from tests.support.accounts import create_account, seed_graph
 
     http, db = api
     other = create_account(http, db, "bob@example.com")

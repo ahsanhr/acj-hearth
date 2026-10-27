@@ -28,6 +28,14 @@ backend/
 │   │   └── user.py
 │   └── main.py
 ├── tests/
+│   ├── accounts/
+│   ├── auth/
+│   ├── boards/
+│   ├── tasks/
+│   ├── todo_lists/
+│   ├── frontend/
+│   ├── support/
+│   └── conftest.py
 ├── .env
 ├── README.md
 └── requirements.txt
@@ -79,7 +87,7 @@ HTTP Request -> API Endpoint -> Service -> Model/Database -> Response Schema -> 
 
 ### `backend/tests/`
 
-Backend test suite. Tests should be organized around API behavior, services, and database logic as the backend grows.
+Tests are grouped into feature directories (`accounts`, `auth`, `boards`, `tasks`, `todo_lists`, and `frontend`). Shared fixtures live in `conftest.py` and reusable helpers in `support/`. See [the test layout and commands](backend/tests/README.md).
 
 ### `backend/requirements.txt`
 

@@ -11,7 +11,7 @@ from app.core.security import (
     verify_password,
 )
 
-from tests.auth_support import PASSWORD, authorize, call, login, register, token_session
+from tests.support.auth import PASSWORD, authorize, call, login, register, token_session
 
 
 def test_refresh_rotation_and_logout_without_access_token(api):

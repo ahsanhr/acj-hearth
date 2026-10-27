@@ -3,7 +3,7 @@
 import pytest
 from app.services.auth import AuthError
 
-from tests.account_support import (
+from tests.support.accounts import (
     ME,
     NEW_PASSWORD,
     USERS,
@@ -12,10 +12,10 @@ from tests.account_support import (
     service_identity,
     snapshot,
 )
-from tests.auth_support import PASSWORD, call, login
+from tests.support.auth import PASSWORD, call, login
 
 
-# GET denial states are covered by test_auth_authorization.py. Each mutation
+# GET denial states are covered by auth/test_authorization.py. Each mutation
 # route still checks every live-identity state, including a JWT with no session.
 @pytest.mark.parametrize("method", ["PATCH", "DELETE"])
 @pytest.mark.parametrize("state", ["missing", "revoked", "disabled", "deleted"])
