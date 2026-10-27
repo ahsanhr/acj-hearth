@@ -1,7 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse
 
+from app.api.deps import current_identity, get_auth_service
+from app.api.v1.endpoints.auth import clear_refresh_cookie, public_user
+from app.schemas.user import UserPublic
+
 router = APIRouter()
+
 
 @router.get("/preview", response_class=HTMLResponse)
 def get_user_preview():
@@ -16,3 +21,23 @@ def get_user_preview():
         </span>
     </div>
     """
+
+@router.get("/me", response_model=UserPublic)
+async def me(identity=Depends(current_identity)):
+    return public_user(identity[0])
+
+
+@router.delete("/me", status_code=204)
+async def delete_me(request: Request, response: Response,
+                    identity=Depends(current_identity), service=Depends(get_auth_service)):
+    user, session = identity
+    await service.revoke_account(user["_id"], delete=True, current_sid=session["session_id"])
+    clear_refresh_cookie(response, request)
+
+
+@router.post("/me/disable", status_code=204)
+async def disable_me(request: Request, response: Response,
+                     identity=Depends(current_identity), service=Depends(get_auth_service)):
+    user, session = identity
+    await service.revoke_account(user["_id"], current_sid=session["session_id"])
+    clear_refresh_cookie(response, request)

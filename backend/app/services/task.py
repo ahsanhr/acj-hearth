@@ -78,3 +78,16 @@ async def update_task(task_id: str, task: TaskUpdate):
 
     return updated_task
 
+
+async def delete_task(task_id: str):
+    try:
+        task_object_id = ObjectId(task_id)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+
+    result = await db["tasks"].delete_one({"_id": task_object_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    return {"message": "Task deleted successfully"}
