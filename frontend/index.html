@@ -1,17 +1,81 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FastAPI Client</title>
-  <link rel="stylesheet" href="style.css" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hearth</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Just+Another+Hand&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css" />
+    <link rel="stylesheet" href="css/modal.css" />
+
 </head>
 <body>
-  <main class="container">
-    <h1>Users Dashboard</h1>
-    <button id="load-users-btn">Fetch Users</button>
-    <div id="content-output" class="output-box">Click the button to load users...</div>
-  </main>
-  <script type="module" src="app.js"></script>
+    <main>
+        <div class="header-tag"><h1><span id="board-owner-name">Example</span>'s Hearth</h1></div>
+        <div class="sticky-note note-green" style="top:7%; left:62%"><h1>10/26</h1></div>
+        <div class="sticky-note note-orange" style="top: 20%; left: 15%;"></div>
+        <div class="sticky-note note-yellorange" style="top: 65%; left: 35%;"></div>
+        <div class="sticky-note note-blue" style="top: 25%; right: 12%;"></div>
+    </main>
+
+    <dialog id="modal-view">
+        <div class="pin pin-red"></div>
+        <section id="view-welcome">
+            <h1>Welcome to Hearth!</h1>
+            <h2>hearth is a shared productivity made fun and simple!</h2>
+            <div class="button-row">
+                <button type="button" id="btn-goto-login" class="pill-btn">login</button>
+                <button type="button" id="btn-goto-signup" class="pill-btn">sign up</button>
+            </div>
+        </section>
+
+        <section id="view-login" hidden>
+          <h1>Login:</h1>
+          <form id="form-login" class="login-signup-forms">
+
+            <label for="login-email">email:</label>
+            <input type="email" id="login-email" name="email" required autocomplete="email" />
+
+            <label for="login-password">password:</label>
+            <input type="password" id="login-password" name="password" required autocomplete="current-password" />
+            <div class="button-row">
+                <button type="submit" class="pill-btn submit-btn">enter</button>
+                <button type="button" id="btn-login-back-welcome" class="pill-btn">back</button>
+            </div>
+          </form>
+        </section>
+
+        <section id="view-signup" hidden>
+          <h1>Sign Up:</h1>
+          <form id="form-signup" class="login-signup-forms">
+            <label for="signup-name">name:</label>
+            <input type="text" id="signup-name"  />
+
+            <label for="signup-email">email:</label>
+            <input type="email" id="signup-email" name="email" required autocomplete="email" />
+
+            <label for="signup-password">password:</label>
+            <input type="password" id="signup-password" name="password" required autocomplete="current-password" />
+            <div class="button-row">
+              <button type="submit" class="pill-btn submit-btn">enter</button>
+              <button type="button" id="btn-signup-back-welcome" class="pill-btn">back</button>
+            </div>
+
+          </form>
+        </section>
+
+        <section id="view-welcome-back" hidden>
+          <h1>Welcome Back <span id="user-display-name">[NAME]</span>!</h1>
+        <div class="button-row">
+            <button type="button" id="btn-enter-hearth" class="pill-btn wide-btn">enter</button>
+        </div>
+        </section>
+    </dialog>
+
+    <script src="js/app.js"></script>
+
 </body>
 </html>
