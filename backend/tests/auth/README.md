@@ -62,8 +62,7 @@ PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/auth -q
 PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/accounts/test_rollback.py -q
 
 # Complete backend suite, excluding browser tests.
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q \
-  --ignore=backend/tests/frontend
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
 ```
 
 Integration tests require `TEST_MONGODB_URI` in the environment or `backend/.env`.

@@ -70,8 +70,7 @@ PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/accounts -q
 PYTHONPATH=backend .venv/bin/python -m pytest backend/tests/accounts/test_authorization.py -q
 
 # Full backend regression suite; excludes Playwright browser tests.
-PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q \
-  --ignore=backend/tests/frontend
+PYTHONPATH=backend .venv/bin/python -m pytest backend/tests -q
 ```
 
 Set `TEST_MONGODB_URI` in the environment or `backend/.env` (environment wins).

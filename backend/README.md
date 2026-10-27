@@ -107,17 +107,17 @@ coverage. Tests are grouped by feature under `tests/`, with helpers in
 
 ```sh
 cd backend
-.venv/bin/python -m pytest -q --ignore=tests/frontend
+.venv/bin/python -m pytest -q
 # Include real transaction/concurrency/API tests:
-TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q --ignore=tests/frontend
+TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q
 ```
 
-The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/frontend`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for async retry-control tests.
+Frontend browser tests live separately in [`frontend/tests/`](../frontend/tests/README.md) and require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest frontend/tests`. They serve the frontend over HTTP and mock `/api/v1/users/preview`, covering initial layout, HTML rendering, and API errors. They do not require MongoDB or a running backend. The development dependencies include `pytest-asyncio` for async retry-control tests.
 
 Run the complete suite, including authentication transaction/concurrency tests and browser tests, from the repository root:
 
 ```sh
-TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' uv run pytest backend/tests -q
+TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' PYTHONPATH=backend uv run pytest backend/tests frontend/tests -q
 ```
 
 Integration tests create uniquely named `hearth_test_*` databases and drop them afterward. Use a disposable replica set. Set `TEST_MONGODB_URI` in the process environment or `backend/.env`; the environment takes precedence. Tests do not fall back to the application's `MONGODB_URI`. Without a test URI, database tests are skipped; cryptography and validation tests still run. Database names fit Atlas's 38-byte limit. Resource tests use real authenticated transactions rather than legacy unauthenticated string-ID mocks.

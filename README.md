@@ -33,7 +33,6 @@ backend/
 │   ├── boards/
 │   ├── tasks/
 │   ├── todo_lists/
-│   ├── frontend/
 │   ├── support/
 │   └── conftest.py
 ├── .env
@@ -87,7 +86,9 @@ HTTP Request -> API Endpoint -> Service -> Model/Database -> Response Schema -> 
 
 ### `backend/tests/`
 
-Tests are grouped into feature directories (`accounts`, `auth`, `boards`, `tasks`, `todo_lists`, and `frontend`). Shared fixtures live in `conftest.py` and reusable helpers in `support/`. See [the test layout and commands](backend/tests/README.md).
+Backend tests are grouped into feature directories (`accounts`, `auth`, `boards`, `tasks`, and `todo_lists`). Shared fixtures live in `conftest.py` and reusable helpers in `support/`. See [the backend test layout and commands](backend/tests/README.md).
+
+Browser tests are separate in [`frontend/tests/`](frontend/tests/README.md). They use Playwright against the frontend preview with mocked API responses.
 
 ### `backend/requirements.txt`
 
