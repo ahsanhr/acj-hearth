@@ -98,6 +98,11 @@ Index setup enforces unique normalized email, removes obsolete legacy-field inde
 
 ## Tests
 
+Account and auth/session tests are organized by happy paths, invalid inputs,
+authorization, and data integrity, with separate concurrency and shared rollback
+coverage. See [account tests](tests/ACCOUNT_TESTS.md) and
+[auth/session tests](tests/AUTH_TESTS.md) for coverage ownership and focused commands.
+
 ```sh
 cd backend
 .venv/bin/python -m pytest -q --ignore=tests/test_frontend.py
@@ -105,7 +110,7 @@ cd backend
 TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q --ignore=tests/test_frontend.py
 ```
 
-The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/test_frontend.py`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for the board, list, and task unit tests.
+The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/test_frontend.py`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for async retry-control tests.
 
 Run the complete suite, including authentication transaction/concurrency tests and browser tests, from the repository root:
 
