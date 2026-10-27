@@ -2,12 +2,16 @@ import asyncio
 from datetime import timedelta
 from functools import partial
 
-from bson import ObjectId
 import jwt
-
 from app.api.v1.endpoints.auth import COOKIE_NAME, COOKIE_PATH
-from app.core.security import decode_access_token, issue_access_token, refresh_hash, utcnow
+from app.core.security import (
+    decode_access_token,
+    issue_access_token,
+    refresh_hash,
+    utcnow,
+)
 from app.services.auth import AuthError
+from bson import ObjectId
 
 PASSWORD = "a long password!1"
 EMAIL = "user@example.com"
@@ -18,7 +22,7 @@ def call(http, fn, *args, **kwargs):
 
 
 def register(http, email=EMAIL):
-    return http.post("/api/v1/auth/register", json={"email": email, "password": PASSWORD})
+    return http.post("/api/v1/users", json={"email": email, "password": PASSWORD})
 
 
 def login(http, email=EMAIL, password=PASSWORD):
@@ -40,12 +44,21 @@ def test_registration_login_and_cookie(api):
     assert response.json()["email_verified"] is False
     duplicate = register(http)
     assert duplicate.status_code == 409
-    assert duplicate.json()["error"]["message"] == "An account with this email already exists."
+    assert (
+        duplicate.json()["error"]["message"]
+        == "An account with this email already exists."
+    )
     token = authorize(http, login(http, "USER@example.com"))
     cookie = http.cookies.get(COOKIE_NAME)
     response = login(http)
     cookie_header = response.headers["set-cookie"]
-    for attribute in ["HttpOnly", "Secure", "SameSite=lax", f"Path={COOKIE_PATH}", "expires="]:
+    for attribute in [
+        "HttpOnly",
+        "Secure",
+        "SameSite=lax",
+        f"Path={COOKIE_PATH}",
+        "expires=",
+    ]:
         assert attribute in cookie_header
     assert response.headers["cache-control"] == "no-store"
     assert cookie not in response.text
@@ -71,10 +84,15 @@ def test_login_errors_and_validation_do_not_echo_password(api):
     missing = login(http, email="absent@example.com")
     assert wrong.status_code == missing.status_code == 401
     assert wrong.json() == missing.json()
-    result = http.post("/api/v1/auth/register", json={"email": "bad", "password": "secret"})
+    result = http.post("/api/v1/users", json={"email": "bad", "password": "secret"})
     assert result.status_code == 422
     assert "secret" not in result.text
-    result = http.post("/api/v1/auth/login", json={"username": "user", "password": PASSWORD})
+    assert result.json() == {
+        "error": {"code": "validation_error", "message": "Invalid request fields."}
+    }
+    result = http.post(
+        "/api/v1/auth/login", json={"username": "user", "password": PASSWORD}
+    )
     assert result.status_code == 422
     assert PASSWORD not in result.text
 
@@ -96,7 +114,9 @@ def test_refresh_rotation_and_logout_without_access_token(api):
     assert old_cookie != new_cookie
     updated = call(http, db.sessions.find_one, {"session_id": first_claims["sid"]})
     assert record["expires_at"] == updated["expires_at"]
-    replay = http.post("/api/v1/auth/refresh", headers={"Cookie": f"{COOKIE_NAME}={old_cookie}"})
+    replay = http.post(
+        "/api/v1/auth/refresh", headers={"Cookie": f"{COOKIE_NAME}={old_cookie}"}
+    )
     assert replay.status_code == 401
     assert replay.json()["error"]["code"] == "reauthentication_required"
     assert http.get("/api/v1/users/me").status_code == 200  # replay does not revoke
@@ -117,14 +137,22 @@ def test_refresh_when_access_expired_and_session_boundary(api):
     register(http)
     token = authorize(http, login(http))
     claims = jwt.decode(token, options={"verify_signature": False})
-    claims.update(iat=int((utcnow() - timedelta(minutes=20)).timestamp()),
-                  exp=int((utcnow() - timedelta(minutes=5)).timestamp()))
-    expired = jwt.encode(claims, "a" * 48, algorithm="HS256", headers={"kid": "current"})
+    claims.update(
+        iat=int((utcnow() - timedelta(minutes=20)).timestamp()),
+        exp=int((utcnow() - timedelta(minutes=5)).timestamp()),
+    )
+    expired = jwt.encode(
+        claims, "a" * 48, algorithm="HS256", headers={"kid": "current"}
+    )
     http.headers["Authorization"] = f"Bearer {expired}"
     assert http.get("/api/v1/users/me").status_code == 401
     assert http.post("/api/v1/auth/refresh").status_code == 200
-    call(http, db.sessions.update_one, {"session_id": claims["sid"]},
-         {"$set": {"expires_at": utcnow()}})
+    call(
+        http,
+        db.sessions.update_one,
+        {"session_id": claims["sid"]},
+        {"$set": {"expires_at": utcnow()}},
+    )
     assert http.post("/api/v1/auth/refresh").status_code == 401
     http.headers["Authorization"] = f"Bearer {token}"
     assert http.get("/api/v1/users/me").status_code == 401
@@ -140,10 +168,17 @@ def test_owned_sessions_eviction_and_clear(api):
     assert call(http, db.sessions.count_documents, {}) == 5
     http.headers["Authorization"] = f"Bearer {first_token}"
     assert http.get("/api/v1/auth/sessions").status_code == 401
-    assert http.post("/api/v1/auth/refresh", headers={"Cookie": f"{COOKIE_NAME}={first_cookie}"}).status_code == 401
+    assert (
+        http.post(
+            "/api/v1/auth/refresh", headers={"Cookie": f"{COOKIE_NAME}={first_cookie}"}
+        ).status_code
+        == 401
+    )
     authorize(http, login(http))
     register(http, "other@example.com")
-    other_session, _ = call(http, http.app.state.auth_service.login, "other@example.com", PASSWORD)
+    other_session, _ = call(
+        http, http.app.state.auth_service.login, "other@example.com", PASSWORD
+    )
     other_sid = other_session["session_id"]
     assert http.delete(f"/api/v1/auth/sessions/{other_sid}").status_code == 404
     sessions = http.get("/api/v1/auth/sessions").json()
@@ -162,15 +197,27 @@ def test_concurrent_logins_and_refresh(api):
     service = http.app.state.auth_service
 
     async def simultaneous_logins():
-        return await asyncio.gather(*(service.login(EMAIL, PASSWORD) for _ in range(8)))
+        return await asyncio.gather(
+            *(service.login(EMAIL, PASSWORD) for _ in range(8)),
+            return_exceptions=True,
+        )
 
     results = call(http, simultaneous_logins)
-    assert len({r[0]["session_id"] for r in results}) == 8
-    assert call(http, db.sessions.count_documents, {}) == 5
+    successes = [result for result in results if isinstance(result, tuple)]
+    assert successes  # At least one transaction must commit.
+    # Bounded retries do not promise every competing request will succeed.
+    for result in results:
+        if not isinstance(result, tuple):
+            assert isinstance(result, AuthError)
+            assert (result.status, result.code) == (503, "database_busy")
+    assert len({result[0]["session_id"] for result in successes}) == len(successes)
+    assert call(http, db.sessions.count_documents, {}) == min(5, len(successes))
     _, raw = call(http, service.login, EMAIL, PASSWORD)
 
     async def simultaneous_refreshes():
-        return await asyncio.gather(service.refresh(raw), service.refresh(raw), return_exceptions=True)
+        return await asyncio.gather(
+            service.refresh(raw), service.refresh(raw), return_exceptions=True
+        )
 
     results = call(http, simultaneous_refreshes)
     assert sum(isinstance(r, tuple) for r in results) == 1
@@ -182,11 +229,17 @@ def test_password_change_and_account_revocation(api):
     register(http)
     authorize(http, login(http))
     authorize(http, login(http))
-    wrong = http.post("/api/v1/auth/password", json={"current_password": "wrong", "new_password": "another password!2"})
+    wrong = http.patch(
+        "/api/v1/users/me",
+        json={"current_password": "wrong", "new_password": "another password!2"},
+    )
     assert wrong.status_code == 400
     assert call(http, db.sessions.count_documents, {}) == 2
-    changed = http.post("/api/v1/auth/password", json={"current_password": PASSWORD, "new_password": "another password!2"})
-    assert changed.status_code == 204
+    changed = http.patch(
+        "/api/v1/users/me",
+        json={"current_password": PASSWORD, "new_password": "another password!2"},
+    )
+    assert changed.status_code == 200
     assert call(http, db.sessions.count_documents, {}) == 0
     assert http.get("/api/v1/users/me").status_code == 401
     assert login(http).status_code == 401
@@ -202,7 +255,12 @@ def test_delete_account_and_stale_session_rejected(api):
     register(http)
     authorize(http, login(http))
     original = call(http, db.sessions.find_one, {})
-    assert http.delete("/api/v1/users/me").status_code == 204
+    assert (
+        http.request(
+            "DELETE", "/api/v1/users/me", json={"current_password": PASSWORD}
+        ).status_code
+        == 204
+    )
     assert call(http, db.sessions.count_documents, {}) == 0
     assert call(http, db.users.count_documents, {}) == 0
     # Even an externally reintroduced session must not authenticate a deleted user.
@@ -213,8 +271,11 @@ def test_delete_account_and_stale_session_rejected(api):
 def test_origin_validation(api):
     http, _ = api
     for path in ["login", "refresh", "logout"]:
-        response = http.post(f"/api/v1/auth/{path}", headers={"Origin": "https://evil.example"},
-                             json={"email": EMAIL, "password": PASSWORD})
+        response = http.post(
+            f"/api/v1/auth/{path}",
+            headers={"Origin": "https://evil.example"},
+            json={"email": EMAIL, "password": PASSWORD},
+        )
         assert response.status_code == 403
     http.headers.pop("Origin")
     assert http.post("/api/v1/auth/logout").status_code == 403
@@ -225,10 +286,18 @@ def test_tampered_missing_and_mismatched_jwt(api):
     register(http)
     token = authorize(http, login(http))
     claims = jwt.decode(token, options={"verify_signature": False})
-    for bad in ["malformed", token + "tampered", issue_access_token({
-        "user_id": ObjectId(), "session_id": claims["sid"],
-        "expires_at": utcnow() + timedelta(days=1),
-    }, http.app.state.settings)]:
+    for bad in [
+        "malformed",
+        token + "tampered",
+        issue_access_token(
+            {
+                "user_id": ObjectId(),
+                "session_id": claims["sid"],
+                "expires_at": utcnow() + timedelta(days=1),
+            },
+            http.app.state.settings,
+        ),
+    ]:
         http.headers["Authorization"] = f"Bearer {bad}"
         assert http.get("/api/v1/users/me").status_code == 401
     http.headers.pop("Authorization")

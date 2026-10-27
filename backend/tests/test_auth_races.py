@@ -1,8 +1,9 @@
 import asyncio
 
 import pytest
-
+from app.schemas.user import AccountPatch
 from app.services.auth import AuthError
+
 from tests.test_auth_api import EMAIL, PASSWORD, authorize, call, login, register
 
 
@@ -21,19 +22,32 @@ def test_login_cannot_escape_concurrent_revocation(api, monkeypatch, action):
         proceed = asyncio.Event()
 
         async def gated_touch(user_id, tx, **conditions):
-            if "auth_version" in conditions:  # login has already verified old credentials
+            if asyncio.current_task().get_name() == "login":  # old credentials verified
                 waiting.set()
                 await proceed.wait()
             return await original_touch(user_id, tx, **conditions)
 
         monkeypatch.setattr(service, "touch_user", gated_touch)
-        pending_login = asyncio.create_task(service.login(EMAIL, PASSWORD))
+        pending_login = asyncio.create_task(
+            service.login(EMAIL, PASSWORD), name="login"
+        )
         await asyncio.wait_for(waiting.wait(), timeout=10)
         try:
             if action == "password":
-                await service.change_password(user, session["session_id"], PASSWORD, "another password!2")
+                await http.app.state.account_service.update(
+                    user,
+                    session["session_id"],
+                    AccountPatch(
+                        current_password=PASSWORD,
+                        new_password="another password!2",
+                    ),
+                )
+            elif action == "delete":
+                await http.app.state.account_service.delete(
+                    user, session["session_id"], PASSWORD
+                )
             else:
-                await service.revoke_account(user["_id"], delete=action == "delete")
+                await service.revoke_account(user["_id"])
         finally:
             proceed.set()
         return (await asyncio.gather(pending_login, return_exceptions=True))[0]
@@ -75,4 +89,3 @@ def test_logout_identified_before_rotation_still_revokes(api, monkeypatch):
     assert call(http, db.sessions.count_documents, {}) == 0
     with pytest.raises(AuthError):
         call(http, service.refresh, rotated_raw)
-

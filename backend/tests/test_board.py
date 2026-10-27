@@ -1,96 +1,136 @@
+"""Board regressions using canonical IDs and authenticated, real transactions."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+import asyncio
 
 import pytest
-from bson import ObjectId
+from app.services.auth import AuthError
+from app.services.board import update_board
 
-from app.services.board import create_board, get_all_boards
-from app.schemas.board import BoardCreate
-
-
-@pytest.mark.asyncio
-async def test_get_all_boards():
-    board_id = ObjectId()
-
-    async def mock_find():
-        yield {
-            "_id": board_id,
-            "boardName": "HEARTH Test Board",
-            "createdBy": "test-user-123",
-            "members": ["test-user-123"]
-        }
-
-    mock_collection = MagicMock()
-    mock_collection.find.side_effect = mock_find
-
-    with patch("app.services.board.db") as mock_db:
-        mock_db.__getitem__.return_value = mock_collection
-
-        boards = await get_all_boards()
-
-    assert len(boards) == 1
-    assert boards[0]["_id"] == str(board_id)
-    assert boards[0]["boardName"] == "HEARTH Test Board"
+from tests.account_support import create_account, service_identity, snapshot
+from tests.test_account_races import REQUEST_TIMEOUT, request
+from tests.test_auth_api import PASSWORD, call
 
 
-@pytest.mark.asyncio
-async def test_get_all_boards_empty():
-    async def mock_find():
-        for board in []:
-            yield board
-
-    mock_collection = MagicMock()
-    mock_collection.find.side_effect = mock_find
-
-    with patch("app.services.board.db") as mock_db:
-        mock_db.__getitem__.return_value = mock_collection
-
-        boards = await get_all_boards()
-
-    assert boards == []
-
-
-@pytest.mark.asyncio
-async def test_create_board():
-    board = BoardCreate(
-        boardName="HEARTH Test Board",
-        createdBy="test-user-123",
-        members=[]
+@pytest.mark.parametrize("include_owner", [False, True])
+def test_board_creation_deduplicates_members_and_scopes_reads(
+    api, account, include_owner
+):
+    http, db = api
+    other = create_account(http, db, "bob@example.com")
+    uid, oid = account["user"]["_id"], other["user"]["_id"]
+    members = [str(oid)] + ([str(uid), str(uid)] if include_owner else [])
+    response = http.post(
+        "/api/v1/boards/",
+        json={
+            "boardName": "Group",
+            "createdBy": str(uid),
+            "members": members,
+        },
+        headers=account["headers"],
     )
+    assert response.status_code == 201, response.text
+    assert set(response.json()["members"]) == {str(uid), str(oid)}
+    for actor in [account, other]:
+        boards = http.get("/api/v1/boards/", headers=actor["headers"])
+        assert boards.status_code == 200
+        assert [board["_id"] for board in boards.json()] == [response.json()["_id"]]
+    outsider = create_account(http, db, "outsider@example.com")
+    assert http.get("/api/v1/boards/", headers=outsider["headers"]).json() == []
 
-    mock_collection = MagicMock()
-    mock_collection.insert_one = AsyncMock(
-        return_value=MagicMock(inserted_id=ObjectId())
+
+def test_board_creator_cannot_select_another_owner(api, account):
+    http, db = api
+    other = create_account(http, db, "bob@example.com")
+    before = snapshot(http, db)
+    response = http.post(
+        "/api/v1/boards/",
+        json={
+            "boardName": "Not mine",
+            "createdBy": str(other["user"]["_id"]),
+        },
+        headers=account["headers"],
     )
-
-    with patch("app.services.board.db") as mock_db:
-        mock_db.__getitem__.return_value = mock_collection
-
-        result = await create_board(board)
-
-    assert result["boardName"] == "HEARTH Test Board"
-    assert result["createdBy"] == "test-user-123"
-    assert "test-user-123" in result["members"]
-    assert "_id" in result
-    mock_collection.insert_one.assert_awaited_once()
+    assert response.status_code == 403
+    assert snapshot(http, db) == before
 
 
-@pytest.mark.asyncio
-async def test_create_board_existing_member():
-    board = BoardCreate(
-        boardName="HEARTH Test Board",
-        createdBy="test-user-123",
-        members=["test-user-123"]
+def test_board_updates_require_owner_and_preserve_canonical_relationships(
+    api, account_graph
+):
+    http, db = api
+    member, owner, graph = account_graph
+    bid = graph["surviving"]
+    before = call(http, db.boards.find_one, {"_id": bid})
+    identity = service_identity(http, db, owner)
+    updated = call(
+        http,
+        update_board,
+        str(bid),
+        {"boardName": "Renamed"},
+        identity=identity,
+        database=db,
     )
-
-    mock_collection = MagicMock()
-    mock_collection.insert_one = AsyncMock(
-        return_value=MagicMock(inserted_id=ObjectId())
+    assert updated["boardName"] == "Renamed"
+    assert (
+        call(http, db.boards.find_one, {"_id": bid})["mutation_serial"]
+        == before["mutation_serial"] + 1
     )
+    for changes, actor, status in [
+        ({"createdBy": str(member["user"]["_id"])}, owner, 422),
+        ({"boardName": "unauthorized"}, member, 403),
+    ]:
+        before = snapshot(http, db)
+        with pytest.raises(AuthError) as error:
+            call(
+                http,
+                update_board,
+                str(bid),
+                changes,
+                identity=service_identity(http, db, actor),
+                database=db,
+            )
+        assert error.value.status == status
+        assert snapshot(http, db) == before
 
-    with patch("app.services.board.db") as mock_db:
-        mock_db.__getitem__.return_value = mock_collection
 
-        result = await create_board(board)
+def test_membership_update_racing_cleanup_cannot_restore_deleted_member(
+    api, account_graph
+):
+    http, db = api
+    account, owner, graph = account_graph
+    identity = service_identity(http, db, owner)
 
-    assert result["members"].count("test-user-123") == 1
+    async def race():
+        return await asyncio.wait_for(
+            asyncio.gather(
+                update_board(
+                    str(graph["surviving"]),
+                    {
+                        "members": [
+                            str(owner["user"]["_id"]),
+                            str(account["user"]["_id"]),
+                        ],
+                    },
+                    identity=identity,
+                    database=db,
+                ),
+                request(
+                    http.app,
+                    "DELETE",
+                    "/api/v1/users/me",
+                    payload={"current_password": PASSWORD},
+                    headers=account["headers"],
+                ),
+                return_exceptions=True,
+            ),
+            timeout=REQUEST_TIMEOUT,
+        )
+
+    changed, deleted = call(http, race)
+    assert not isinstance(deleted, BaseException), repr(deleted)
+    assert deleted.status_code == 204, deleted.text
+    if isinstance(changed, BaseException):
+        assert isinstance(changed, AuthError), repr(changed)
+        assert changed.status in (401, 422, 503)
+    board = call(http, db.boards.find_one, {"_id": graph["surviving"]})
+    assert board["members"] == [owner["user"]["_id"]]
