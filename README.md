@@ -27,8 +27,14 @@ backend/
 │   ├── services/
 │   │   └── user.py
 │   └── main.py
-├── alembic/
 ├── tests/
+│   ├── accounts/
+│   ├── auth/
+│   ├── boards/
+│   ├── tasks/
+│   ├── todo_lists/
+│   ├── support/
+│   └── conftest.py
 ├── .env
 ├── README.md
 └── requirements.txt
@@ -56,10 +62,10 @@ Global application configuration and infrastructure setup.
 
 ### `backend/app/models/`
 
-Database models, typically SQLAlchemy ORM models.
+Pydantic models representing MongoDB documents. Database access uses PyMongo.
 
-- `base.py`: Shared declarative base for ORM models.
-- `user.py`: User table/model definition.
+- `base.py`: Shared MongoDB document model and ObjectId handling.
+- `user.py`: User document model definition.
 
 ### `backend/app/schemas/`
 
@@ -78,13 +84,11 @@ Example flow:
 HTTP Request -> API Endpoint -> Service -> Model/Database -> Response Schema -> HTTP Response
 ```
 
-### `backend/alembic/`
-
-Database migration directory. Alembic migration files and configuration will live here once database migrations are initialized.
-
 ### `backend/tests/`
 
-Backend test suite. Tests should be organized around API behavior, services, and database logic as the backend grows.
+Backend tests are grouped into feature directories (`accounts`, `auth`, `boards`, `tasks`, and `todo_lists`). Shared fixtures live in `conftest.py` and reusable helpers in `support/`. See [the backend test layout and commands](backend/tests/README.md).
+
+Browser tests are separate in [`frontend/tests/`](frontend/tests/README.md). They use Playwright against the frontend preview with mocked API responses.
 
 ### `backend/requirements.txt`
 

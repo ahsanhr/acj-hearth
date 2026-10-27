@@ -1,46 +1,54 @@
 import asyncio
 
-from app.core.database import db, close_database_connection
+from pydantic import ValidationError
+
+from app.core.database import close_database_connection, db
+from app.models.user import UserModel
 
 
 async def setup_database(database=None):
     database = db if database is None else database
-    # Never silently expose unmigrated accounts with case-sensitive identities or
-    # the old scaffold's password fields. See README.md before migrating data.
-    async for user in database.users.find({}, {
-        "email": 1, "password_hash": 1, "disabled": 1, "email_verified": 1,
-        "auth_version": 1, "auth_serial": 1,
-    }):
-        email = user.get("email")
-        if (
-            not isinstance(email, str) or email != email.strip().casefold()
-            or not isinstance(user.get("password_hash"), str)
-            or not user["password_hash"].startswith("$argon2id$")
-            or type(user.get("disabled")) is not bool
-            or type(user.get("email_verified")) is not bool
-            or type(user.get("auth_version")) is not int
-            or type(user.get("auth_serial")) is not int
-        ):
-            raise RuntimeError("Existing users require authentication migration; see README.md")
-    if await database.users.find_one({"password": {"$exists": True}}, {"_id": 1}):
-        raise RuntimeError("Remove legacy password fields after migration; see README.md")
+    # Development has no legacy-account migration path. Fail closed on invalid
+    # stored accounts rather than silently accepting obsolete credentials.
+    async for user in database.users.find({}):
+        try:
+            UserModel.model_validate(user)
+        except ValidationError:
+            raise RuntimeError(
+                "Stored account does not match the canonical user model"
+            ) from None
+    obsolete_fields = {"firstName", "lastName", "userID", "username", "password"}
+    for name, index in (await database.users.index_information()).items():
+        if any(field in obsolete_fields for field, _ in index["key"]):
+            await database.users.drop_index(name)
     await database.users.create_index("email", unique=True)
-    # Registration no longer requires usernames; retain uniqueness only when present.
-    indexes = await database.users.index_information()
-    if "username_1" in indexes and not indexes["username_1"].get("partialFilterExpression"):
-        await database.users.drop_index("username_1")
-    await database.users.create_index(
-        "username", unique=True, partialFilterExpression={"username": {"$type": "string"}}
-    )
     await database.sessions.create_index("session_id", unique=True)
     await database.sessions.create_index("refresh_token_hash", unique=True)
-    await database.sessions.create_index([("user_id", 1), ("created_at", 1), ("session_id", 1)])
+    await database.sessions.create_index(
+        [("user_id", 1), ("created_at", 1), ("session_id", 1)]
+    )
     await database.sessions.create_index("expires_at", expireAfterSeconds=0)
 
-    await database["todo_lists"].create_index(
-        [("boardID", 1), ("ownerID", 1)],
-        unique=True
+    owner_keys = [("boardID", 1), ("ownerID", 1)]
+    owner_filter = {"ownerID": {"$type": "objectId"}}
+    for name, index in (await database.todo_lists.index_information()).items():
+        if index["key"] == owner_keys and (
+            not index.get("unique")
+            or index.get("partialFilterExpression") != owner_filter
+        ):
+            await database.todo_lists.drop_index(name)
+    await database.todo_lists.create_index(
+        owner_keys,
+        unique=True,
+        partialFilterExpression=owner_filter,
     )
+    await database.boards.create_index("createdBy")
+    await database.boards.create_index("members")
+    await database.todo_lists.create_index("boardID")
+    await database.todo_lists.create_index("ownerID")
+    await database.tasks.create_index("listID")
+    await database.messages.create_index([("listID", 1), ("createdAt", 1)])
+    await database.messages.create_index("userID")
 
     print("Database indexes created successfully!")
 
