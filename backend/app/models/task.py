@@ -1,11 +1,10 @@
 from datetime import date
-from pydantic import Field
 
-from app.models.base import MongoModel
+from app.models.base import MongoModel, PyObjectId
 
 
 class Task(MongoModel):
-    listID: str
+    listID: PyObjectId
     title: str
     description: str = ""
     completed: bool = False
