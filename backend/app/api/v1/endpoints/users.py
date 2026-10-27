@@ -1,9 +1,14 @@
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse
 
-from app.api.deps import current_identity, get_auth_service
+from app.api.deps import current_identity, get_account_service, get_auth_service
 from app.api.v1.endpoints.auth import clear_refresh_cookie, public_user
-from app.schemas.user import UserPublic
+from app.schemas.user import (
+    AccountPatch,
+    PasswordConfirmation,
+    Registration,
+    UserPublic,
+)
 
 router = APIRouter()
 
@@ -22,22 +27,55 @@ def get_user_preview():
     </div>
     """
 
+
+@router.post("", response_model=UserPublic, status_code=201)
+async def create_account(payload: Registration, service=Depends(get_account_service)):
+    user = await service.create(str(payload.email), payload.password.get_secret_value())
+    return public_user(user)
+
+
 @router.get("/me", response_model=UserPublic)
 async def me(identity=Depends(current_identity)):
     return public_user(identity[0])
 
 
-@router.delete("/me", status_code=204)
-async def delete_me(request: Request, response: Response,
-                    identity=Depends(current_identity), service=Depends(get_auth_service)):
+@router.patch("/me", response_model=UserPublic)
+async def update_me(
+    payload: AccountPatch,
+    request: Request,
+    response: Response,
+    identity=Depends(current_identity),
+    service=Depends(get_account_service),
+):
     user, session = identity
-    await service.revoke_account(user["_id"], delete=True, current_sid=session["session_id"])
+    updated, revoked = await service.update(user, session["session_id"], payload)
+    if revoked:
+        clear_refresh_cookie(response, request)
+    return public_user(updated)
+
+
+@router.delete("/me", status_code=204)
+async def delete_me(
+    payload: PasswordConfirmation,
+    request: Request,
+    response: Response,
+    identity=Depends(current_identity),
+    service=Depends(get_account_service),
+):
+    user, session = identity
+    await service.delete(
+        user, session["session_id"], payload.current_password.get_secret_value()
+    )
     clear_refresh_cookie(response, request)
 
 
 @router.post("/me/disable", status_code=204)
-async def disable_me(request: Request, response: Response,
-                     identity=Depends(current_identity), service=Depends(get_auth_service)):
+async def disable_me(
+    request: Request,
+    response: Response,
+    identity=Depends(current_identity),
+    service=Depends(get_auth_service),
+):
     user, session = identity
     await service.revoke_account(user["_id"], current_sid=session["session_id"])
     clear_refresh_cookie(response, request)

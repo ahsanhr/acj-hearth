@@ -1,8 +1,13 @@
+import logging
+
 import certifi
 from pymongo import AsyncMongoClient
 
 from app.core.config import settings
 
+# Command/reply debug logging includes stored credentials and session data.
+# Keep payload logging off even when the application root logger is DEBUG.
+logging.getLogger("pymongo.command").disabled = True
 
 # Do not enable TLS implicitly for a local, non-TLS replica set.
 _tls = (

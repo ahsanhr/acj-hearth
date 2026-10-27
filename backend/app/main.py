@@ -11,6 +11,7 @@ from app.core.config import settings as default_settings
 from app.core.database import db
 from app.core.setup_db import setup_database
 from app.services.auth import AuthError, AuthService
+from app.services.user import AccountService
 
 
 def create_app(settings=None, database=None, *, initialize_database=True):
@@ -34,17 +35,19 @@ def create_app(settings=None, database=None, *, initialize_database=True):
     app = FastAPI(title="HEARTH API", lifespan=lifespan)
     app.state.settings = config
     app.state.auth_service = AuthService(database)
+    app.state.account_service = AccountService(database, app.state.auth_service)
     app.add_middleware(
-        CORSMiddleware, allow_origins=config.AUTH_ALLOWED_ORIGINS,
+        CORSMiddleware,
+        allow_origins=config.AUTH_ALLOWED_ORIGINS,
         allow_credentials=True,
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
 
     @app.middleware("http")
     async def prevent_auth_caching(request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith(("/api/v1/auth", "/api/v1/users/me")):
+        if request.url.path.startswith(("/api/v1/auth", "/api/v1/users")):
             response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -55,22 +58,36 @@ def create_app(settings=None, database=None, *, initialize_database=True):
             headers["WWW-Authenticate"] = "Bearer"
         return JSONResponse(
             {"error": {"code": exc.code, "message": exc.message}},
-            status_code=exc.status, headers=headers,
+            status_code=exc.status,
+            headers=headers,
         )
 
     @app.exception_handler(PyMongoError)
     async def database_error(request: Request, exc: PyMongoError):
         return JSONResponse(
-            {"error": {"code": "database_unavailable", "message": "Service temporarily unavailable."}},
-            status_code=503, headers={"Cache-Control": "no-store"},
+            {
+                "error": {
+                    "code": "database_unavailable",
+                    "message": "Service temporarily unavailable.",
+                }
+            },
+            status_code=503,
+            headers={"Cache-Control": "no-store"},
         )
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
-        # FastAPI's default includes input values, which can echo raw passwords.
-        errors = [{"loc": e["loc"], "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
-        return JSONResponse({"detail": errors}, status_code=422,
-                            headers={"Cache-Control": "no-store"})
+        # Neither raw inputs nor validator details belong in public errors.
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "validation_error",
+                    "message": "Invalid request fields.",
+                }
+            },
+            status_code=422,
+            headers={"Cache-Control": "no-store"},
+        )
 
     app.include_router(api_router, prefix="/api/v1")
     return app

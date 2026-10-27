@@ -1,8 +1,8 @@
 from typing import Annotated
 
+import jwt
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import jwt
 
 from app.core.security import decode_access_token
 from app.services.auth import AuthError, unauthorized
@@ -14,9 +14,17 @@ def get_auth_service(request: Request):
     return request.app.state.auth_service
 
 
+def get_account_service(request: Request):
+    return request.app.state.account_service
+
+
 def require_origin(request: Request):
     origin = request.headers.get("origin")
-    if not origin or origin == "null" or origin not in request.app.state.settings.AUTH_ALLOWED_ORIGINS:
+    if (
+        not origin
+        or origin == "null"
+        or origin not in request.app.state.settings.AUTH_ALLOWED_ORIGINS
+    ):
         raise AuthError(403, "invalid_origin", "Request origin is not allowed.")
 
 
@@ -28,7 +36,9 @@ async def current_identity(
     if not credentials or credentials.scheme.lower() != "bearer":
         raise unauthorized()
     try:
-        claims = decode_access_token(credentials.credentials, request.app.state.settings)
+        claims = decode_access_token(
+            credentials.credentials, request.app.state.settings
+        )
     except (jwt.InvalidTokenError, ValueError, TypeError, KeyError) as exc:
         raise unauthorized() from exc
     return await service.authenticate(claims)
