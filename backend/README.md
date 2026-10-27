@@ -73,7 +73,7 @@ Request validation errors return HTTP 422 with `{ "error": { "code": "validation
 
 ## Frontend contract
 
-The included frontend is an API preview, not an authentication UI. A browser authentication UI must:
+The included frontend connects signup and login, optionally saves a display name after signup, and restores sessions on startup. See the [frontend HTTPS setup](../README.md#frontend-account-setup). Access JWTs stay in memory, and startup refresh is serialized across same-origin tabs with Web Locks (unsupported browsers require explicit login). Logout/session-management controls and automatic access-token renewal for future protected board requests are not implemented yet. The full browser authentication contract is:
 
 1. Keep access JWTs only in memory and send `Authorization: Bearer <token>` for protected requests.
 2. Use `credentials: "include"` for login, refresh, and logout requests.
