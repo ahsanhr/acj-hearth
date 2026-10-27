@@ -97,7 +97,13 @@ cd backend
 TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' .venv/bin/python -m pytest -q --ignore=tests/test_frontend.py
 ```
 
-The separate upstream frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/test_frontend.py`. These tests currently expect user-card rendering and element IDs that do not match `frontend/app.js`; that pre-existing frontend mismatch is separate from authentication.
+The frontend tests require Playwright and Chromium. From the repository root, install the browser with `uv run playwright install chromium`, then run `uv run pytest backend/tests/test_frontend.py`. They serve the frontend over HTTP and mock the supported `/api/v1/users/preview` endpoint, covering initial layout, HTML rendering, and API errors. The development dependencies include `pytest-asyncio` for the board, list, and task unit tests.
+
+Run the complete suite, including authentication transaction/concurrency tests and browser tests, from the repository root:
+
+```sh
+TEST_MONGODB_URI='mongodb://localhost:27017/?replicaSet=rs0' uv run pytest backend/tests -q
+```
 
 Integration tests create uniquely named `hearth_test_*` databases and drop them afterward. Use a disposable replica set. Without `TEST_MONGODB_URI`, database tests are skipped; cryptography and validation tests still run.
 
