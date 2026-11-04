@@ -2,7 +2,6 @@
 
 from datetime import timedelta
 
-import pytest
 from app.api.v1.endpoints.auth import COOKIE_NAME, COOKIE_PATH
 from app.core.security import (
     decode_access_token,
@@ -11,8 +10,6 @@ from app.core.security import (
 from bson import ObjectId
 
 from tests.support.auth import EMAIL, authorize, call, login, register
-
-pytestmark = pytest.mark.happy_path
 
 
 def test_login_issues_secure_cookie_and_session_linked_access_token(api):

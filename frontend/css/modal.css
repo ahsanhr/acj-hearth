@@ -59,24 +59,3 @@
   justify-content: center;
   flex-direction: column;
 }
-
-.form-status,
-.form-help {
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
-  line-height: 1.4;
-  max-width: 32rem;
-}
-
-.form-status {
-  color: #842525;
-}
-
-.form-status:empty {
-  display: none;
-}
-
-button:disabled {
-  opacity: 0.6;
-  cursor: wait;
-}

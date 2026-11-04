@@ -23,13 +23,6 @@ dev = [
     "ruff>=0.17.1",
 ]
 
-[tool.pytest.ini_options]
-markers = [
-    "happy_path: representative valid inputs and successful operations",
-    "unhappy_path: representative validation, authentication, or authorization failures",
-    "regression: lifecycle, integrity, rollback, and concurrency invariants",
-]
-
 [tool.ruff]
 target-version = "py312"
 line-length = 88
