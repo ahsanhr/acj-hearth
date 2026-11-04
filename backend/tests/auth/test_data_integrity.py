@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 
+import pytest
 from app.api.v1.endpoints.auth import COOKIE_NAME
 from app.core.security import (
     decode_access_token,
@@ -12,6 +13,8 @@ from app.core.security import (
 )
 
 from tests.support.auth import PASSWORD, authorize, call, login, register, token_session
+
+pytestmark = pytest.mark.regression
 
 
 def test_refresh_rotation_and_logout_without_access_token(api):

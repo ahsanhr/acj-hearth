@@ -22,6 +22,8 @@ from tests.support.auth import (
     token_session,
 )
 
+pytestmark = pytest.mark.unhappy_path
+
 
 def test_refresh_when_access_expired_and_session_boundary(api):
     http, db = api
