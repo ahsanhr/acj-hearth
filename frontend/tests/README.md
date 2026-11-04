@@ -1,7 +1,8 @@
 # Frontend browser tests
 
-`test_frontend.py` contains three existing Playwright tests for the frontend
-preview:
+**Outdated coverage:** `test_frontend.py` still targets the old preview UI, not
+the current signup/login forms. These three unchanged tests are expected to fail
+against the current frontend:
 
 - Initial page layout and default content.
 - Clicking the load button renders the fetched preview HTML.
@@ -22,10 +23,9 @@ uv run playwright install chromium
 
 # Only the three frontend cases.
 uv run pytest frontend/tests -q
-
-# Both suites (backend integration tests need TEST_MONGODB_URI).
-PYTHONPATH=backend uv run pytest backend/tests frontend/tests -q
 ```
 
 When using the existing virtual environment directly, replace `uv run pytest`
 with `.venv/bin/python -m pytest`.
+
+For backend test setup and commands, see the [backend test guide](../../backend/tests/README.md).

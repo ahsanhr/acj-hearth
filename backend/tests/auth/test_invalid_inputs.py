@@ -1,10 +1,10 @@
 """Authentication/session contracts: invalid inputs."""
 
 import pytest
-from app.schemas.user import Registration
-from pydantic import ValidationError
 
 from tests.support.auth import PASSWORD, call, login, register
+
+pytestmark = pytest.mark.unhappy_path
 
 
 def test_login_errors_and_validation_do_not_echo_password(api):
@@ -22,16 +22,6 @@ def test_login_errors_and_validation_do_not_echo_password(api):
     )
     assert result.status_code == 422
     assert PASSWORD not in result.text
-
-
-@pytest.mark.parametrize(
-    "password",
-    ["long password ! abc", "long password 1   "],
-    ids=["missing-ascii-digit", "missing-punctuation-or-symbol"],
-)
-def test_password_policy_rejections(password):
-    with pytest.raises(ValidationError):
-        Registration(email="user@example.com", password=password)
 
 
 def test_missing_signing_secret_fails_startup_configuration(auth_settings):

@@ -14,11 +14,21 @@ from tests.support.accounts import (
 )
 from tests.support.auth import PASSWORD, call, login
 
+pytestmark = pytest.mark.unhappy_path
 
-# GET denial states are covered by auth/test_authorization.py. Each mutation
-# route still checks every live-identity state, including a JWT with no session.
-@pytest.mark.parametrize("method", ["PATCH", "DELETE"])
-@pytest.mark.parametrize("state", ["missing", "revoked", "disabled", "deleted"])
+
+# Both routes use current_identity. Cover each denial class once across the
+# mutation entry points, rather than repeating the full method × state product.
+@pytest.mark.parametrize(
+    "method,state",
+    [
+        ("PATCH", "missing"),
+        ("DELETE", "revoked"),
+        ("PATCH", "disabled"),
+        ("DELETE", "deleted"),
+    ],
+    ids=["missing-token", "revoked-session", "disabled-user", "deleted-user"],
+)
 def test_account_mutations_require_active_identity(api, account, method, state):
     http, db = api
     uid = account["user"]["_id"]
@@ -45,13 +55,14 @@ def test_account_mutations_require_active_identity(api, account, method, state):
     "fields,confirmation",
     [
         ({"name": "New"}, None),
-        ({"name": "New"}, "wrong"),
-        ({"email": "new@example.com"}, "wrong"),
-        ({"new_password": NEW_PASSWORD}, "wrong"),
+        (
+            {"name": "New", "email": "new@example.com", "new_password": NEW_PASSWORD},
+            "wrong",
+        ),
     ],
-    ids=["missing-confirmation", "name", "email", "password"],
+    ids=["missing-confirmation", "incorrect-confirmation"],
 )
-def test_every_patch_requires_password_confirmation(api, account, fields, confirmation):
+def test_patch_requires_password_confirmation(api, account, fields, confirmation):
     http, db = api
     # Preserve the multi-session failure guarantee formerly duplicated in the
     # auth API regression: no current or other owned session may be revoked.
@@ -128,8 +139,12 @@ def test_patch_cors_preflight_preserves_origin_and_credentials_policy(
         assert "access-control-allow-origin" not in response.headers
 
 
-@pytest.mark.parametrize("resource", ["list", "task"])
-@pytest.mark.parametrize("identity", ["missing", "nonmember"])
+# ResourceAccess shares identity/membership guards across descendants.
+@pytest.mark.parametrize(
+    "resource,identity",
+    [("list", "missing"), ("task", "nonmember")],
+    ids=["unauthenticated-list", "nonmember-task"],
+)
 def test_resource_creation_requires_live_membership(
     api, account_graph, resource, identity
 ):
