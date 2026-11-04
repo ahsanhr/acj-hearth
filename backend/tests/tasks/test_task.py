@@ -3,17 +3,31 @@
 import pytest
 from bson import ObjectId
 
-from tests.support.accounts import create_account, snapshot
+from tests.support.accounts import (
+    assert_one_transaction,
+    create_account,
+    snapshot,
+    transaction_writes,
+)
 from tests.support.auth import call
 
 
-def test_create_and_read_task_preserves_date_and_relationship(api, account_graph):
+@pytest.mark.happy_path
+def test_create_and_read_task_preserves_date_and_relationship(
+    api, account_graph, monkeypatch
+):
     http, db = api
     account, _, graph = account_graph
     path = f"/api/v1/lists/{graph['orphan_list']}/tasks/"
     payload = {"title": "New task", "description": "Details", "dueDate": "2026-10-25"}
+    writes = transaction_writes(monkeypatch, db.name)
     response = http.post(path, json=payload, headers=account["headers"])
     assert response.status_code == 201, response.text
+    assert_one_transaction(writes, {"users", "boards", "tasks"})
+    assert (
+        call(http, db.boards.find_one, {"_id": graph["surviving"]})["mutation_serial"]
+        > 0
+    )
     task = response.json()
     assert task["listID"] == str(graph["orphan_list"])
     assert task["completed"] is False
@@ -30,6 +44,7 @@ def test_create_and_read_task_preserves_date_and_relationship(api, account_graph
     )
 
 
+@pytest.mark.happy_path
 @pytest.mark.parametrize(
     "changes", [{"title": "Changed"}, {"completed": True}, {"dueDate": None}]
 )
@@ -54,9 +69,13 @@ def test_partial_task_updates_preserve_untouched_fields(api, account_graph, chan
     )
 
 
-@pytest.mark.parametrize("method", ["PATCH", "DELETE"])
+# PATCH/DELETE share mutate_task; sample each failure class once, while
+# retaining both HTTP entry points and independent successful paths.
+@pytest.mark.unhappy_path
 @pytest.mark.parametrize(
-    "task_id,status", [("invalid-id", 400), (str(ObjectId()), 404)]
+    "method,task_id,status",
+    [("PATCH", "invalid-id", 400), ("DELETE", str(ObjectId()), 404)],
+    ids=["malformed-id", "missing-target"],
 )
 def test_task_mutations_reject_invalid_or_missing_targets(
     api, account, method, task_id, status
@@ -73,8 +92,12 @@ def test_task_mutations_reject_invalid_or_missing_targets(
     assert snapshot(http, db) == before
 
 
-@pytest.mark.parametrize("method", ["PATCH", "DELETE"])
-@pytest.mark.parametrize("actor", ["missing", "outsider"])
+@pytest.mark.unhappy_path
+@pytest.mark.parametrize(
+    "method,actor",
+    [("PATCH", "missing"), ("DELETE", "outsider")],
+    ids=["unauthenticated", "nonmember"],
+)
 def test_task_mutations_require_live_membership(api, account_graph, method, actor):
     http, db = api
     _, _, graph = account_graph
@@ -94,6 +117,7 @@ def test_task_mutations_require_live_membership(api, account_graph, method, acto
     assert snapshot(http, db) == before
 
 
+@pytest.mark.happy_path
 def test_task_deletion_cleans_cached_reference_in_same_transaction(api, account_graph):
     http, db = api
     account, _, graph = account_graph
@@ -119,6 +143,7 @@ def test_task_deletion_cleans_cached_reference_in_same_transaction(api, account_
     )
 
 
+@pytest.mark.unhappy_path
 def test_task_update_cannot_reassign_parent_or_accept_invalid_fields(
     api, account_graph
 ):

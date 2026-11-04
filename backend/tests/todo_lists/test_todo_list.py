@@ -6,17 +6,33 @@ from app.services.board import update_board
 from app.services.todo_list import update_todo_list
 from bson import ObjectId
 
-from tests.support.accounts import create_account, mutate, service_identity, snapshot
+from tests.support.accounts import (
+    assert_one_transaction,
+    create_account,
+    mutate,
+    service_identity,
+    snapshot,
+    transaction_writes,
+)
 from tests.support.auth import PASSWORD, call
 
 
-def test_create_read_and_duplicate_list_are_atomic(api, account_graph):
+@pytest.mark.regression
+def test_create_read_and_duplicate_list_are_atomic(api, account_graph, monkeypatch):
     http, db = api
     account, _, graph = account_graph
     path = f"/api/v1/boards/{graph['owned']}/lists/"
     payload = {"ownerID": str(account["user"]["_id"]), "title": "My tasks"}
+    writes = transaction_writes(monkeypatch, db.name)
     response = http.post(path, json=payload, headers=account["headers"])
     assert response.status_code == 201, response.text
+    assert_one_transaction(writes, {"users", "boards", "todo_lists"})
+    record = call(http, db.todo_lists.find_one, {"title": "My tasks"})
+    assert record["ownerID"] == account["user"]["_id"]
+    assert record["boardID"] == graph["owned"]
+    assert (
+        call(http, db.boards.find_one, {"_id": graph["owned"]})["mutation_serial"] > 0
+    )
     row = response.json()
     assert row["boardID"] == str(graph["owned"])
     assert row["ownerID"] == payload["ownerID"]
@@ -32,6 +48,7 @@ def test_create_read_and_duplicate_list_are_atomic(api, account_graph):
     assert snapshot(http, db) == before
 
 
+@pytest.mark.unhappy_path
 @pytest.mark.parametrize(
     "board_id,status", [("invalid-id", 400), (str(ObjectId()), 404)]
 )
@@ -49,6 +66,7 @@ def test_invalid_or_missing_list_parent_is_rejected(api, account, board_id, stat
     assert snapshot(http, db) == before
 
 
+@pytest.mark.unhappy_path
 def test_cannot_assign_list_to_another_member_or_read_unrelated_board(
     api, account_graph
 ):
@@ -67,6 +85,7 @@ def test_cannot_assign_list_to_another_member_or_read_unrelated_board(
     assert http.get(path, headers=outsider["headers"]).status_code == 403
 
 
+@pytest.mark.regression
 def test_only_board_owner_manages_retained_ownerless_lists(api, account_graph):
     http, db = api
     account, owner, graph = account_graph
