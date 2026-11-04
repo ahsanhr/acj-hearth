@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from app.services.auth import AuthError
 from app.services.board import update_board
+from bson import ObjectId
 
 from tests.support.accounts import (
     REQUEST_TIMEOUT,
@@ -16,7 +17,10 @@ from tests.support.accounts import (
 from tests.support.auth import PASSWORD, call
 
 
-@pytest.mark.parametrize("include_owner", [False, True])
+@pytest.mark.happy_path
+@pytest.mark.parametrize(
+    "include_owner", [False, True], ids=["implicit-owner", "duplicate-owner"]
+)
 def test_board_creation_deduplicates_members_and_scopes_reads(
     api, account, include_owner
 ):
@@ -35,6 +39,12 @@ def test_board_creation_deduplicates_members_and_scopes_reads(
     )
     assert response.status_code == 201, response.text
     assert set(response.json()["members"]) == {str(uid), str(oid)}
+    board = call(http, db.boards.find_one, {"_id": ObjectId(response.json()["_id"])})
+    assert board["createdBy"] == uid
+    assert set(board["members"]) == {uid, oid}
+    assert all(isinstance(member, ObjectId) for member in board["members"])
+    assert type(board["mutation_serial"]) is int and board["mutation_serial"] == 0
+    assert response.json()["createdBy"] == str(uid)
     for actor in [account, other]:
         boards = http.get("/api/v1/boards/", headers=actor["headers"])
         assert boards.status_code == 200
@@ -43,6 +53,7 @@ def test_board_creation_deduplicates_members_and_scopes_reads(
     assert http.get("/api/v1/boards/", headers=outsider["headers"]).json() == []
 
 
+@pytest.mark.unhappy_path
 def test_board_creator_cannot_select_another_owner(api, account):
     http, db = api
     other = create_account(http, db, "bob@example.com")
@@ -59,6 +70,7 @@ def test_board_creator_cannot_select_another_owner(api, account):
     assert snapshot(http, db) == before
 
 
+@pytest.mark.regression
 def test_board_updates_require_owner_and_preserve_canonical_relationships(
     api, account_graph
 ):
@@ -98,6 +110,7 @@ def test_board_updates_require_owner_and_preserve_canonical_relationships(
         assert snapshot(http, db) == before
 
 
+@pytest.mark.regression
 def test_membership_update_racing_cleanup_cannot_restore_deleted_member(
     api, account_graph
 ):

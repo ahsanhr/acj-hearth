@@ -33,6 +33,8 @@ from tests.support.accounts import (
 )
 from tests.support.auth import PASSWORD, call
 
+pytestmark = pytest.mark.regression
+
 
 def test_request_and_public_schemas_allow_only_agreed_fields():
     assert set(UserPublic.model_fields) == PUBLIC_FIELDS
@@ -129,7 +131,7 @@ def test_retired_routes_are_not_registered(api):
 
 
 def test_delete_cascades_owned_boards_but_preserves_other_users_conversations(
-    api, account_graph
+    api, account_graph, monkeypatch
 ):
     http, db = api
     account, other, graph = account_graph
@@ -142,10 +144,20 @@ def test_delete_cascades_owned_boards_but_preserves_other_users_conversations(
     extra_headers = {"Authorization": f"Bearer {extra_login.json()['access_token']}"}
     extra_refresh = http.cookies.get(COOKIE_NAME)
     other_sessions = call(http, db.sessions.find_one, {"user_id": oid})
-    response = mutate(
-        http, method="DELETE", payload={"current_password": PASSWORD}, account=account
-    )
+    # Observe cleanup only; the later replacement-account insert is deliberately
+    # not a transaction and must not inherit this instrumentation.
+    with monkeypatch.context() as cleanup:
+        writes = transaction_writes(cleanup, db.name)
+        response = mutate(
+            http,
+            method="DELETE",
+            payload={"current_password": PASSWORD},
+            account=account,
+        )
     assert response.status_code == 204, response.text
+    assert_one_transaction(
+        writes, {"users", "sessions", "boards", "todo_lists", "tasks", "messages"}
+    )
     assert response.content == b""
     assert response.headers.get("cache-control") == "no-store"
     cleared_cookie(response)
@@ -349,62 +361,6 @@ def test_list_owner_index_allows_null_but_not_duplicate_live_owner(api, account)
     )
 
 
-def test_board_creation_stores_objectid_relationships_and_initializes_counter(
-    api, account
-):
-    http, db = api
-    other = create_account(http, db, "bob@example.com")
-    response = http.post(
-        "/api/v1/boards/",
-        headers=account["headers"],
-        json={
-            "boardName": "canonical",
-            "createdBy": str(account["user"]["_id"]),
-            "members": [str(other["user"]["_id"])],
-        },
-    )
-    assert response.status_code == 201, response.text
-    board = call(http, db.boards.find_one, {"boardName": "canonical"})
-    assert isinstance(board["_id"], ObjectId)
-    assert board["createdBy"] == account["user"]["_id"]
-    assert set(board["members"]) == {account["user"]["_id"], other["user"]["_id"]}
-    assert all(isinstance(member, ObjectId) for member in board["members"])
-    assert type(board["mutation_serial"]) is int and board["mutation_serial"] == 0
-    assert response.json()["createdBy"] == str(account["user"]["_id"])
-
-
-@pytest.mark.parametrize("resource", ["list", "task"])
-def test_descendant_creation_touches_board_in_same_transaction(
-    api, account_graph, monkeypatch, resource
-):
-    http, db = api
-    account, other, graph = account_graph
-    uid = account["user"]["_id"]
-    if resource == "list":
-        # No list on owned board currently belongs to the board owner.
-        path = f"/api/v1/boards/{graph['owned']}/lists/"
-        payload = {"ownerID": str(uid), "title": "new list"}
-        collection = "todo_lists"
-    else:
-        path = f"/api/v1/lists/{graph['orphan_list']}/tasks/"
-        payload = {"title": "new task"}
-        collection = "tasks"
-    writes = transaction_writes(monkeypatch, db.name)
-    response = http.post(path, json=payload, headers=account["headers"])
-    assert response.status_code == 201, response.text
-    assert_one_transaction(writes, {"users", "boards", collection})
-    identifier = graph["owned"] if resource == "list" else graph["surviving"]
-    assert call(http, db.boards.find_one, {"_id": identifier})["mutation_serial"] > 0
-    if resource == "list":
-        record = call(http, db.todo_lists.find_one, {"title": "new list"})
-        assert record["ownerID"] == uid
-        assert isinstance(record["boardID"], ObjectId)
-    else:
-        assert isinstance(
-            call(http, db.tasks.find_one, {"title": "new task"})["listID"], ObjectId
-        )
-
-
 def test_tombstones_are_anonymous_and_cannot_be_restored(api, account_graph):
     from app.services.message import get_list_messages, public_message, update_message
 
@@ -528,19 +484,6 @@ def test_content_mutations_share_account_and_board_transaction(
     assert (
         call(http, db.boards.find_one, {"_id": graph["surviving"]})["mutation_serial"]
         > 0
-    )
-
-
-def test_every_cleanup_write_uses_the_same_transaction(api, account_graph, monkeypatch):
-    http, db = api
-    account, _, _ = account_graph
-    writes = transaction_writes(monkeypatch, db.name)
-    response = mutate(
-        http, method="DELETE", payload={"current_password": PASSWORD}, account=account
-    )
-    assert response.status_code == 204, response.text
-    assert_one_transaction(
-        writes, {"users", "sessions", "boards", "todo_lists", "tasks", "messages"}
     )
 
 

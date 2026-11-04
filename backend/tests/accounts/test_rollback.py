@@ -18,6 +18,8 @@ from tests.support.accounts import (
 )
 from tests.support.auth import PASSWORD, call
 
+pytestmark = pytest.mark.regression
+
 UNKNOWN_MESSAGE = (
     "Unable to confirm whether account creation, update, or deletion completed. "
     "Reauthenticate and check account state before retrying."
