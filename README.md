@@ -1,102 +1,95 @@
 # ACJ Hearth
 
-Hearth is a shared productivity app built around collaborative boards, task
-lists, and messages. It uses a plain HTML/CSS/JavaScript frontend, a FastAPI
-backend, and MongoDB.
+## Backend Structure
 
-## Project structure
+The backend is scaffolded as a monolithic FastAPI application using a layered architecture. All backend code lives under the `backend/` directory.
 
 ```text
-acj-hearth/
-├── backend/
-│   ├── app/
-│   │   ├── main.py          # FastAPI entrypoint
-│   │   ├── api/             # Routes and request dependencies
-│   │   ├── core/            # Configuration, database, and security
-│   │   ├── models/          # Stored document models
-│   │   ├── schemas/         # Request/response validation
-│   │   └── services/        # Business logic and transactions
-│   ├── tests/              # Backend tests and testing guide
-│   ├── compose.yaml        # Local MongoDB replica set
-│   └── .env.example        # Backend configuration template
-├── frontend/
-│   ├── index.html          # Pages and forms
-│   ├── css/                # Styles
-│   ├── js/                 # UI logic and API calls
-│   └── tests/              # Browser tests
-├── docs/                   # Detailed setup and service documentation
-├── Caddyfile               # Local HTTPS server and API proxy
-└── pyproject.toml          # Python dependencies and tooling
+backend/
+├── app/
+│   ├── api/
+│   │   ├── deps.py
+│   │   └── v1/
+│   │       ├── endpoints/
+│   │       │   ├── auth.py
+│   │       │   └── users.py
+│   │       └── api.py
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── database.py
+│   │   └── security.py
+│   ├── models/
+│   │   ├── base.py
+│   │   └── user.py
+│   ├── schemas/
+│   │   ├── token.py
+│   │   └── user.py
+│   ├── services/
+│   │   └── user.py
+│   └── main.py
+├── tests/
+│   ├── accounts/
+│   ├── auth/
+│   ├── boards/
+│   ├── tasks/
+│   ├── todo_lists/
+│   ├── support/
+│   └── conftest.py
+├── .env
+├── README.md
+└── requirements.txt
 ```
 
-## Running locally
+### `backend/app/main.py`
 
-Requires Python 3.13+, [uv](https://docs.astral.sh/uv/), and **Caddy or nginx**.
-For local MongoDB, also start Docker Desktop. Commands below assume macOS and
-start in the repository root. No npm install or frontend build is needed.
+Application entrypoint. This is where the FastAPI app is initialized, routers are included, and application-level middleware will be registered.
 
-### 1. One-time setup
+### `backend/app/api/`
 
-```sh
-brew install uv
-uv sync
-cp backend/.env.example backend/.env  # Only if .env does not already exist.
-.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(48))'
+Routing and controller layer for REST endpoints.
+
+- `deps.py`: Shared FastAPI dependencies such as database sessions, authentication dependencies, or current-user resolution.
+- `v1/api.py`: Aggregates all version 1 route modules and applies shared prefixes.
+- `v1/endpoints/`: Contains path operation functions, grouped by resource or feature. These files act as the controllers for the API.
+
+### `backend/app/core/`
+
+Global application configuration and infrastructure setup.
+
+- `config.py`: Environment-driven settings using Pydantic settings.
+- `database.py`: Database engine, connection, and session setup.
+- `security.py`: Security-related helpers such as password hashing and JWT handling.
+
+### `backend/app/models/`
+
+Pydantic models representing MongoDB documents. Database access uses PyMongo.
+
+- `base.py`: Shared MongoDB document model and ObjectId handling.
+- `user.py`: User document model definition.
+
+### `backend/app/schemas/`
+
+Pydantic schemas used for request validation and response serialization.
+
+- `token.py`: Authentication token schemas.
+- `user.py`: User-related DTOs such as create, update, and response schemas.
+
+### `backend/app/services/`
+
+Business logic layer. Services coordinate application behavior and keep business rules separate from API route handlers.
+
+Example flow:
+
+```text
+HTTP Request -> API Endpoint -> Service -> Model/Database -> Response Schema -> HTTP Response
 ```
 
-Paste the generated secret into `backend/.env` and confirm:
+### `backend/tests/`
 
-```env
-MONGODB_URI=mongodb://localhost:27017/?replicaSet=rs0
-MONGODB_DB_NAME=hearth
-AUTH_SIGNING_SECRET=PASTE_GENERATED_VALUE_HERE
-AUTH_ALLOWED_ORIGINS=["https://localhost:5173"]
-AUTH_COOKIE_SAMESITE=lax
-```
+Backend tests are grouped into feature directories (`accounts`, `auth`, `boards`, `tasks`, and `todo_lists`). Shared fixtures live in `conftest.py` and reusable helpers in `support/`. See [the backend test layout and commands](backend/tests/README.md).
 
-Use your development connection URI instead if MongoDB is remote. A replica set
-is required. Keep `.env` private and reuse the signing secret between restarts.
+Browser tests are separate in [`frontend/tests/`](frontend/tests/README.md). They use Playwright against the frontend preview with mocked API responses.
 
-### 2. Start the backend
+### `backend/requirements.txt`
 
-```sh
-cd backend
-docker compose up -d --wait  # Skip when using remote MongoDB.
-../.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Wait for **Application startup complete** and leave the terminal running.
-
-### 3. Start HTTPS hosting
-
-Use **one** of the following; HTTPS is required for secure authentication cookies.
-
-**Caddy:** install with `brew install caddy`, then update the `root` path in
-`Caddyfile` to your checkout's absolute `frontend/` path. In a second terminal,
-from the repository root:
-
-```sh
-caddy run --config ./Caddyfile --adapter caddyfile
-```
-
-If prompted, allow local certificate trust. For certificate warnings, run
-`sudo caddy trust` with Caddy running, then restart the browser.
-
-**nginx:** follow the [local HTTPS guide](docs/local-https.md#nginx) to configure
-its certificate, frontend directory, and API proxy, then run:
-
-```sh
-nginx -t
-brew services start nginx  # If already running: nginx -s reload
-```
-
-### 4. Open Hearth
-
-Visit **https://localhost:5173**. Keep both the backend and HTTPS server running.
-On subsequent runs, repeat steps 2–3 only; do not regenerate secrets/certificates.
-
-Stop FastAPI/Caddy with Ctrl+C, or nginx with `brew services stop nginx`.
-Stop local MongoDB with `docker compose stop` from `backend/`.
-
-For details, see the [HTTPS setup guide](docs/local-https.md),
-[backend API guide](backend/README.md), and [backend test guide](backend/tests/README.md).
+Python dependencies for the backend application.

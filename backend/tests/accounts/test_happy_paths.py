@@ -18,8 +18,6 @@ from tests.support.accounts import (
 )
 from tests.support.auth import PASSWORD, call
 
-pytestmark = pytest.mark.happy_path
-
 
 def test_public_creation_is_canonical_and_does_not_login(api):
     http, db = api

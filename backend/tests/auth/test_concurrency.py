@@ -15,8 +15,6 @@ from tests.support.auth import (
     register,
 )
 
-pytestmark = pytest.mark.regression
-
 
 def test_concurrent_logins_and_refresh(api):
     http, db = api

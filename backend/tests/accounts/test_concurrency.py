@@ -17,8 +17,6 @@ from tests.support.accounts import (
 )
 from tests.support.auth import PASSWORD, call
 
-pytestmark = pytest.mark.regression
-
 
 def test_concurrent_normalized_creations_have_one_winner(api):
     http, db = api

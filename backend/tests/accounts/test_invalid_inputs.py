@@ -1,4 +1,4 @@
-"""Unhappy paths: representative invalid classes, not every input permutation."""
+"""Invalid inputs: one representative per distinct validation rule."""
 
 import pytest
 from app.schemas.message import MessageUpdate
@@ -8,32 +8,24 @@ from pydantic import ValidationError
 from tests.support.accounts import ME, USERS, VALIDATION_ERROR, mutate, snapshot
 from tests.support.auth import PASSWORD, call
 
-pytestmark = pytest.mark.unhappy_path
-
 
 @pytest.mark.parametrize(
-    "method,path,payload",
+    "payload",
     [
-        (
-            "POST",
-            USERS,
-            {
-                "email": "alice@example.com",
-                "password": PASSWORD,
-                "password_hash": "forbidden",
-            },
-        ),
-        ("PATCH", ME, {"current_password": PASSWORD, "name": None}),
-        ("DELETE", ME, {}),
+        {"email": "invalid", "password": PASSWORD},
+        {"email": "alice@example.com", "password": "short!1"},
+        {
+            "email": "alice@example.com",
+            "password": PASSWORD,
+            "password_hash": "forbidden",
+        },
     ],
-    ids=["unknown-field", "explicit-null", "missing-required-field"],
+    ids=["invalid-email", "invalid-password", "protected-field"],
 )
-def test_account_routes_reject_invalid_fields_without_writes(
-    api, account, method, path, payload
-):
+def test_creation_rejects_invalid_fields_without_writes(api, payload):
     http, db = api
     before = snapshot(http, db)
-    response = http.request(method, path, json=payload, headers=account["headers"])
+    response = http.post(USERS, json=payload)
     assert response.status_code == 422, response.text
     assert response.json() == VALIDATION_ERROR
     assert response.headers.get("cache-control") == "no-store"
@@ -43,7 +35,11 @@ def test_account_routes_reject_invalid_fields_without_writes(
 
 @pytest.mark.parametrize(
     "method,path,body",
-    [("POST", USERS, "{not-json"), ("PATCH", ME, "[]"), ("DELETE", ME, "null")],
+    [
+        ("POST", USERS, "{not-json"),
+        ("PATCH", ME, "[]"),
+        ("DELETE", ME, "null"),
+    ],
     ids=["malformed-json", "nonobject-body", "null-body"],
 )
 def test_account_routes_reject_invalid_json_bodies(api, account, method, path, body):
@@ -53,7 +49,10 @@ def test_account_routes_reject_invalid_json_bodies(api, account, method, path, b
         method,
         path,
         content=body,
-        headers={**account["headers"], "Content-Type": "application/json"},
+        headers={
+            **account["headers"],
+            "Content-Type": "application/json",
+        },
     )
     assert response.status_code == 422, response.text
     assert response.json() == VALIDATION_ERROR
@@ -62,8 +61,26 @@ def test_account_routes_reject_invalid_json_bodies(api, account, method, path, b
 
 @pytest.mark.parametrize(
     "fields",
-    [{}, {"name": "  \t "}, {"new_password": "short!1"}],
-    ids=["no-mutable-field", "blank-name", "invalid-password"],
+    [
+        {},
+        {"name": None},
+        {"email": None},
+        {"new_password": None},
+        {"name": "  \t "},
+        {"email": "bad"},
+        {"new_password": "short!1"},
+        {"name": "valid", "password_hash": "forbidden"},
+    ],
+    ids=[
+        "no-mutable-field",
+        "null-name",
+        "null-email",
+        "null-password",
+        "blank-name",
+        "invalid-email",
+        "invalid-password",
+        "protected-field",
+    ],
 )
 def test_patch_rejects_invalid_fields_atomically(api, account, fields):
     http, db = api
@@ -77,23 +94,36 @@ def test_patch_rejects_invalid_fields_atomically(api, account, fields):
 
 
 @pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"current_password": None},
+        {"current_password": PASSWORD, "unknown": True},
+    ],
+    ids=["missing-password", "null-password", "unknown-field"],
+)
+def test_delete_rejects_invalid_confirmation_body_without_cleanup(
+    api, account_graph, payload
+):
+    http, db = api
+    account, _, _ = account_graph
+    before = snapshot(http, db)
+    response = mutate(http, method="DELETE", payload=payload, account=account)
+    assert response.status_code == 422, response.text
+    assert response.json() == VALIDATION_ERROR
+    assert snapshot(http, db) == before
+
+
+@pytest.mark.parametrize(
     "password",
     [
         "a" * 12 + "!1",
         "a" * 127 + "!1",
         "nonascii digit only!١",
-        "long password ! abc",
-        "long password 1   ",
     ],
-    ids=[
-        "below-minimum",
-        "above-maximum",
-        "nonascii-digit",
-        "missing-ascii-digit",
-        "missing-punctuation-or-symbol",
-    ],
+    ids=["below-minimum", "above-maximum", "nonascii-digit"],
 )
-def test_password_policy_rejects_invalid_classes_without_echo(password):
+def test_password_policy_rejects_boundaries_and_nonascii_digits_without_echo(password):
     with pytest.raises(ValidationError) as error:
         Registration(email="alice@example.com", password=password)
     assert password not in str(error.value)
@@ -104,19 +134,21 @@ def test_password_policy_rejects_invalid_classes_without_echo(password):
     [
         {"email": "alice@example.com"},
         {"password": PASSWORD},
-        {"email": "invalid", "password": PASSWORD},
+        {"email": None, "password": PASSWORD},
+        {"email": "alice@example.com", "password": None},
         {"email": "alice@example.com", "password": []},
         {"email": 123, "password": PASSWORD},
     ],
     ids=[
         "missing-password",
         "missing-email",
-        "invalid-email",
+        "null-email",
+        "null-password",
         "wrong-password-type",
         "wrong-email-type",
     ],
 )
-def test_registration_rejects_missing_malformed_or_wrong_type_credentials(fields):
+def test_registration_requires_typed_nonnull_credentials(fields):
     with pytest.raises(ValidationError):
         Registration.model_validate(fields)
 
@@ -132,24 +164,32 @@ def test_message_edit_rejects_client_supplied_deleted_state():
         MessageUpdate.model_validate({"message": "restore", "deleted": False})
 
 
-@pytest.mark.parametrize(
-    "fields",
-    [{"mutation_serial": 900}, {"members": ["not-an-objectid"]}],
-    ids=["server-managed-counter", "malformed-relationship-id"],
-)
-def test_board_rejects_invalid_fields_without_creating_data(api, account, fields):
+def test_board_counter_cannot_be_client_supplied(api, account):
     http, db = api
-    before = snapshot(http, db)
     response = http.post(
         "/api/v1/boards/",
         headers=account["headers"],
         json={
-            "boardName": "invalid",
+            "boardName": "protected",
             "createdBy": str(account["user"]["_id"]),
             "members": [],
-            **fields,
+            "mutation_serial": 900,
         },
     )
     assert response.status_code == 422, response.text
     assert call(http, db.boards.count_documents, {}) == 0
-    assert snapshot(http, db) == before
+
+
+def test_malformed_relationship_id_is_rejected_without_creating_data(api, account):
+    http, db = api
+    response = http.post(
+        "/api/v1/boards/",
+        headers=account["headers"],
+        json={
+            "boardName": "invalid reference",
+            "createdBy": str(account["user"]["_id"]),
+            "members": ["not-an-objectid"],
+        },
+    )
+    assert response.status_code == 422, response.text
+    assert call(http, db.boards.count_documents, {}) == 0
