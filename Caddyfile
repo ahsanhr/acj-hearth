@@ -1,0 +1,12 @@
+{
+	auto_https disable_redirects
+}
+
+https://localhost:5173 {
+	bind 127.0.0.1 ::1
+	tls internal
+
+	root * ./frontend
+	reverse_proxy /api/* 127.0.0.1:8000
+	file_server
+}
