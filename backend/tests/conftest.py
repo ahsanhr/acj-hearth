@@ -1,11 +1,12 @@
 import os
+import certifi
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from app.core.config import Settings
 from app.main import create_app
-from app.services import board, task, todo_list
+from app.services import board, board_invitation, task, todo_list
 from dotenv import dotenv_values
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
@@ -44,12 +45,18 @@ def api(auth_settings, monkeypatch):
     ).get("TEST_MONGODB_URI")
     if not uri:
         pytest.skip("Set TEST_MONGODB_URI to a disposable MongoDB replica set")
-    mongo = AsyncMongoClient(uri, tz_aware=True, serverSelectionTimeoutMS=5000)
+    mongo = AsyncMongoClient(
+        uri,
+        tz_aware=True,
+        serverSelectionTimeoutMS=5000,
+        tlsCAFile=certifi.where(),
+    )
     # Atlas limits database names to 38 bytes; retain 96 bits of randomness.
     database = mongo[f"hearth_test_{uuid4().hex[:24]}"]
     # Upstream resource services use module-level database references. Keep API
     # tests isolated from the configured development/production database.
     monkeypatch.setattr(board, "db", database)
+    monkeypatch.setattr(board_invitation, "db", database)
     monkeypatch.setattr(todo_list, "db", database)
     monkeypatch.setattr(task, "db", database)
     application = create_app(auth_settings, database)
