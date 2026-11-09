@@ -50,6 +50,13 @@ async def setup_database(database=None):
     await database.messages.create_index([("listID", 1), ("createdAt", 1)])
     await database.messages.create_index("userID")
 
+        # Board invitation indexes
+    await database.board_invitations.create_index("token_hash", unique=True)
+    await database.board_invitations.create_index(
+        "expiresAt", expireAfterSeconds=0
+    )
+    await database.board_invitations.create_index("boardID")
+
     print("Database indexes created successfully!")
 
 
