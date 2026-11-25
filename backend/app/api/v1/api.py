@@ -25,6 +25,13 @@ api_router.include_router(
 )
 
 api_router.add_api_route(
+    "/lists/{list_id}",
+    todo_lists.edit_todo_list,
+    methods=["PATCH"],
+    tags=["todo-lists"],
+)
+
+api_router.add_api_route(
     "/tasks/{task_id}",
     tasks.edit_task,
     methods=["PATCH"],
