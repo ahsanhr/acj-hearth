@@ -39,6 +39,7 @@ Paths start with `/api/v1`. Interactive documentation is available at `/docs`.
 | PATCH | `/users/me` | Bearer JWT; `current_password` plus `name`, `email`, and/or `new_password` |
 | POST | `/users/me/disable` | Bearer JWT; disables account and closes all sessions |
 | DELETE | `/users/me` | Bearer JWT; JSON `current_password`; deletes account and related data |
+| PATCH | `/lists/{list_id}` | Bearer JWT; list/board owner; JSON `title` and/or `position: {x, y}` |
 
 - Creation returns **201** with `id`, `name`, `email`, `email_verified`; GET/PATCH
   return the same public fields with **200**. Creation does not log in or verify
@@ -56,6 +57,16 @@ Paths start with `/api/v1`. Interactive documentation is available at `/docs`.
   management requires list or board ownership. Some board/list/message operations
   exist only as internal services. `/auth/register` and `/auth/password` are retired.
 
+### Saved note positions
+
+`PATCH /api/v1/lists/{list_id}` accepts `{"position":{"x":120,"y":240}}`.
+Coordinates are integer pixels relative to the board canvas, each from 0 to 5000.
+Updates preserve omitted fields; empty updates, nulls, extra fields, fractions,
+and out-of-range coordinates return **422**. The transaction checks board
+membership and list/board ownership before writing. Board list responses include
+saved positions; older lists without a position are automatically arranged by the
+frontend. Shared positions use last-write-wins; clients fetch changes with Refresh.
+
 ## Authentication and errors
 
 - **Tokens:** login/refresh return `access_token` and `token_type: "bearer"`; keep tokens in memory and send `Authorization: Bearer <token>`.
@@ -64,7 +75,8 @@ Paths start with `/api/v1`. Interactive documentation is available at `/docs`.
 - **Origins:** login, refresh, and logout require an explicitly allowed Origin.
 - **Refresh:** restore on startup, coordinate across tabs, and never blindly retry one-time rotation.
 - **Sign-in required:** clear local auth on `reauthentication_required`, logout, password changes, or closing all sessions.
-- **Frontend limits:** no logout controls or automatic access-token renewal yet.
+- **Frontend:** logout controls and automatic access-token renewal are implemented;
+  refresh-cookie rotation is coordinated across tabs using Web Locks.
 - **Errors:** `{ "error": { "code": "...", "message": "..." } }`; auth/account responses use `Cache-Control: no-store`.
 - **422:** invalid fields; inputs are not echoed. **401:** invalid credentials.
 - **503 `database_busy`:** transaction retries exhausted.
