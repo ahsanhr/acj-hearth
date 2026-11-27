@@ -98,5 +98,26 @@ On subsequent runs, repeat steps 2–3 only; do not regenerate secrets/certifica
 Stop FastAPI/Caddy with Ctrl+C, or nginx with `brew services stop nginx`.
 Stop local MongoDB with `docker compose stop` from `backend/`.
 
+## Using the board
+
+Sign up or log in to see **Your boards** on the home page. Open any board card,
+or choose a board in the navigation bar. Use **Home** to return to all your boards.
+Create boards or join with invitation tokens/links from the home page.
+
+Inside a board, create your own list, shown as a post-it note. Add tasks, toggle
+completion, or edit/delete tasks in lists you manage. Drag the **Move note** handle
+to arrange a list; its position is saved to MongoDB and shared with members.
+You can also focus the handle and use arrow keys (Shift for larger steps).
+Scroll the corkboard to reach notes beyond the viewport.
+Board owners can manage/move everyone's lists and generate invitation links;
+other members can read all lists but only edit/move their own.
+
+The frontend restores sessions through the secure refresh cookie, keeps access
+tokens in memory, and renews expired tokens once before returning to login.
+Modern browsers use Web Locks to coordinate refresh-cookie rotation across tabs.
+Changes are not pushed live: use **Refresh** to fetch other members' updates.
+Board/list renaming, deletion, and messages are not exposed in this UI.
+Existing lists without saved positions are arranged automatically until moved.
+
 For details, see the [HTTPS setup guide](docs/local-https.md),
 [backend API guide](backend/README.md), and [backend test guide](backend/tests/README.md).

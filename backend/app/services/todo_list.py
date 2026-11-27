@@ -62,7 +62,7 @@ async def update_todo_list(list_id, changes, *, identity, database=None):
     database = db if database is None else database
     access = ResourceAccess(database)
     payload = parse_changes(TodoListUpdate, changes)
-    fields = payload.model_dump()
+    fields = payload.model_dump(exclude_unset=True)
 
     async def update(tx):
         actor = await access.actor(identity, tx)

@@ -14,15 +14,56 @@
 </head>
 <body>
     <main>
-        <div class="header-tag"><h1><span id="board-owner-name">Example</span>'s Hearth</h1></div>
-        <div class="sticky-note note-green" style="top:7%; left:62%"><h1>10/26</h1></div>
-        <div class="sticky-note note-orange" style="top: 20%; left: 15%;"></div>
-        <div class="sticky-note note-yellorange" style="top: 65%; left: 35%;"></div>
-        <div class="sticky-note note-blue" style="top: 25%; right: 12%;"></div>
+        <section id="workspace" hidden>
+            <nav class="app-nav" aria-label="Main navigation">
+                <a href="#home" id="nav-home" class="nav-link">Home</a>
+                <label for="board-select">Board</label>
+                <select id="board-select"></select>
+                <button id="btn-refresh" class="pill-btn" type="button">Refresh</button>
+                <button id="btn-invite" class="pill-btn" type="button" hidden>Invite members</button>
+                <label id="invite-result" hidden>Share this link (expires in 7 days)
+                    <input id="invitation-link" readonly />
+                </label>
+                <span class="nav-user">Welcome, <button id="navbar-user-display-name" type="button" aria-haspopup="dialog"></button>!</span>
+                <button id="btn-logout" class="pill-btn" type="button">Log out</button>
+            </nav>
+            <section id="home-page" aria-labelledby="home-title">
+                <h2 id="home-title">Your boards</h2>
+                <p id="home-empty" hidden>No boards yet. Create your first board or join one below.</p>
+                <div id="board-cards" class="board-cards"></div>
+            <form id="form-board" class="toolbar">
+                <label for="board-name">New board</label>
+                <input id="board-name" required maxlength="128" />
+                <button class="pill-btn" type="submit">Create board</button>
+            </form>
+            <form id="form-invitation" class="toolbar">
+                <label for="invitation-token">Join with invitation token or link</label>
+                <input id="invitation-token" required />
+                <button class="pill-btn" type="submit">Join board</button>
+            </form>
+            </section>
+            <section id="board-content" aria-label="Board workspace" hidden>
+                <form id="form-list" class="toolbar">
+                    <label for="list-title">Your list title</label>
+                    <input id="list-title" required maxlength="128" />
+                    <button class="pill-btn" type="submit">Create my list</button>
+                </form>
+                <div class="board-viewport" tabindex="0" aria-label="Scrollable corkboard">
+                    <div class="header-tag">
+                        <h1 id="board-heading">Hearth</h1>
+                        <p id="move-help">Drag a note by its pin to move.</p>
+                        <p id="app-error" class="error" role="alert" hidden></p>
+                        <p id="app-status" role="status" aria-live="polite"></p>
+                    </div>
+                    <div id="lists" class="board-lists"></div>
+                </div>
+            </section>
+        </section>
     </main>
 
     <dialog id="modal-view">
         <div class="pin pin-red"></div>
+        <p id="auth-error" class="error" role="alert" hidden></p>
         <section id="view-welcome">
             <h1>Welcome to Hearth!</h1>
             <h2>hearth is a shared productivity made fun and simple!</h2>
@@ -52,13 +93,14 @@
           <h1>Sign Up:</h1>
           <form id="form-signup" class="login-signup-forms">
             <label for="signup-name">name:</label>
-            <input type="text" id="signup-name"  />
+            <input type="text" id="signup-name" required maxlength="128" autocomplete="name" />
 
             <label for="signup-email">email:</label>
             <input type="email" id="signup-email" name="email" required autocomplete="email" />
 
             <label for="signup-password">password:</label>
-            <input type="password" id="signup-password" name="password" required autocomplete="current-password" />
+            <input type="password" id="signup-password" name="password" required minlength="15" maxlength="128" autocomplete="new-password" />
+            <p>Use 15–128 characters, including a digit and a symbol.</p>
             <div class="button-row">
               <button type="submit" class="pill-btn submit-btn">enter</button>
               <button type="button" id="btn-signup-back-welcome" class="pill-btn">back</button>
@@ -66,16 +108,18 @@
 
           </form>
         </section>
-
-        <section id="view-welcome-back" hidden>
-          <h1>Welcome Back <span id="user-display-name">[NAME]</span>!</h1>
-        <div class="button-row">
-            <button type="button" id="btn-enter-hearth" class="pill-btn wide-btn">enter</button>
-        </div>
+        <section id="view-account" hidden>
+            <h1 id="account-user-display-name"></h1>
+            <h2>Boards</h2>
+            <ul id="account-boards"></ul>
+            <p id="account-boards-empty" hidden>You’re not part of any boards yet.</p>
+            <div class="button-row">
+                <button type="button" id="btn-account-back" class="pill-btn" autofocus>Back</button>
+            </div>
         </section>
     </dialog>
 
-    <script src="js/app.js"></script>
+    <script type="module" src="js/app.js"></script>
 
 </body>
 </html>
