@@ -194,6 +194,27 @@ def test_login_loads_board_and_logout(frontend_page, api_state):
     assert page.evaluate("localStorage.length") == 0
 
 
+def test_account_view_lists_owned_and_shared_boards(frontend_page, api_state):
+    api_state["boards"].append(
+        {"_id": "board-2", "boardName": "Shared chores", "createdBy": "user-2"}
+    )
+    page = frontend_page
+    sign_in(page)
+    account_button = page.get_by_role("button", name="Alex", exact=True)
+    expect(account_button).to_have_css("text-decoration-line", "underline")
+    account_button.hover()
+    expect(account_button).to_have_css("cursor", "pointer")
+    account_button.click()
+    account = page.locator("#view-account")
+    expect(account).to_be_visible()
+    expect(account.get_by_role("heading", name="Alex", exact=True)).to_be_visible()
+    expect(account.get_by_role("listitem")).to_have_text(["Family", "Shared chores"])
+    account.get_by_role("button", name="Back", exact=True).click()
+    expect(page.locator("#modal-view")).not_to_be_visible()
+    expect(page.locator("#lists")).to_contain_text("My chores")
+    expect(page).to_have_url(re.compile(r"#board=board-1$"))
+
+
 def test_signup_registers_then_saves_name(frontend_page, api_state):
     page = frontend_page
     page.locator("#btn-goto-signup").click()
@@ -201,7 +222,7 @@ def test_signup_registers_then_saves_name(frontend_page, api_state):
     page.locator("#signup-email").fill("taylor@example.com")
     page.locator("#signup-password").fill("a-long-password1!")
     page.locator("#form-signup").get_by_role("button", name="enter").click()
-    expect(page.locator("#user-display-name")).to_have_text("Taylor")
+    expect(page.get_by_role("button", name="Taylor", exact=True)).to_be_visible()
     registration = next(
         body
         for method, path, body, _ in api_state["requests"]
@@ -437,3 +458,6 @@ def test_home_empty_state(frontend_page, api_state):
     expect(page.locator("#home-empty")).to_be_visible()
     expect(page.locator("#board-cards .board-card")).to_have_count(0)
     expect(page.locator("#form-board")).to_be_visible()
+    page.get_by_role("button", name="Alex", exact=True).click()
+    expect(page.locator("#account-boards li")).to_have_count(0)
+    expect(page.locator("#account-boards-empty")).to_be_visible()

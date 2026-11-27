@@ -51,6 +51,7 @@
     background-color: var(--paper_cream);
     margin: 1% 35%;
     box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.25);
+    padding: 0;
 }
 
 body {
@@ -106,7 +107,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     outline: 3px solid #174f9e;
     outline-offset: 3px;
 }
-.error { background: #fff0ed; color: #8a1b0b; padding: 0.75rem; }
+.error { background: #fff0ed; color: #8a1b0b; }
 .app-nav {
     display: flex;
     align-items: center;
@@ -120,6 +121,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .nav-link { color: inherit; font-size: 2rem; padding: 0.25rem 0.75rem; }
 .nav-link[aria-current="page"] { background: var(--sticky_note_pale_yellow); }
 .nav-user { margin-left: auto; font-size: var(--font-body); }
+#navbar-user-display-name {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
 .board-cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr));
@@ -167,18 +177,26 @@ a:focus-visible { outline: 3px solid #174f9e; outline-offset: 3px; }
 .list-note:nth-child(4n+4) { --note-color: var(--sticky_note_blue); }
 .list-note h2 { margin: 0; }
 .note-handle {
-    width: 100%;
+    margin: 0 auto;
+    width: 25px;
+    height: 25px;
+    background-color: var(--pin-color, var(--pin_red));
+    top: 2%;
+    border-radius: 9999px;
+
+    /*width: 100%;*/
     padding: 0.5rem;
-    background: #ffffff55;
+    /*background: #ffffff55;*/
     border: 1px dashed #555;
     color: inherit;
     cursor: grab;
     touch-action: none;
     user-select: none;
-    font: 1rem system-ui, sans-serif;
+    /*font: 1rem system-ui, sans-serif;*/
 }
 .dragging { box-shadow: 5px 12px 20px #0006; }
 .dragging .note-handle { cursor: grabbing; }
+
 @media (max-width: 600px) {
     main { padding: 0.25rem; }
     .nav-user { margin-left: 0; }
@@ -196,3 +214,12 @@ a:focus-visible { outline: 3px solid #174f9e; outline-offset: 3px; }
 #modal-view { max-width: min(90vw, 600px); max-height: 90vh; overflow: auto; }
 #modal-view h1 { margin: 0.5rem 0; }
 
+#move-help {
+    text-align: center;
+}
+#app-error {
+    text-align: center;
+}
+#app-status {
+    text-align: center;
+}

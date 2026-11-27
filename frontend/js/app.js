@@ -22,7 +22,7 @@ function clearErrors() {
 }
 
 function showSection(id) {
-  ['view-welcome', 'view-login', 'view-signup'].forEach((view) => {
+  ['view-welcome', 'view-login', 'view-signup', 'view-account'].forEach((view) => {
     $(view).hidden = view !== id;
   });
   clearErrors();
@@ -158,7 +158,7 @@ function renderList(list, tasks, board) {
   note.dataset.listId = list._id;
   const editable = [list.ownerID, board.createdBy].includes(user.id);
   if (editable) {
-    const handle = button('⠿ Move note', () => {});
+    const handle = button('', () => {});
     handle.className = 'note-handle';
     handle.setAttribute('aria-label', `Move ${list.title}`);
     handle.setAttribute('aria-describedby', 'move-help');
@@ -212,7 +212,7 @@ async function selectBoard(boardId) {
   $('board-select').value = activeBoard?._id || '';
   $('form-list').hidden = true;
   $('btn-invite').hidden = true;
-  $('board-heading').textContent = activeBoard?.boardName || 'Your Hearth';
+  $('board-heading').textContent = activeBoard?.boardName +" Hearth" || 'Your Hearth';
   if (!activeBoard) {
     $('app-status').textContent = '';
     return;
@@ -286,12 +286,18 @@ function renderHome() {
   }));
 }
 
+function renderAccountBoards() {
+  $('account-boards').replaceChildren(...boards.map((board) => element('li', board.boardName)));
+  $('account-boards-empty').hidden = boards.length > 0;
+}
+
 async function loadBoards(preferredId = routeBoardId()) {
   const currentUser = user;
   const version = ++boardsLoadVersion;
   const loaded = await api('/boards/');
   if (user !== currentUser || !user || version !== boardsLoadVersion) return;
   boards = loaded;
+  if (modal.open && !$('view-account').hidden) renderAccountBoards();
   renderHome();
   const homeOption = element('option', 'Choose a board…');
   homeOption.value = '';
@@ -306,7 +312,7 @@ async function loadBoards(preferredId = routeBoardId()) {
 
 async function enterWorkspace() {
   user = await api('/users/me');
-  $('user-display-name').textContent = user.name;
+  $('navbar-user-display-name').textContent = user.name;
   $('workspace').hidden = false;
   modal.close();
   await loadBoards();
@@ -316,7 +322,18 @@ $('btn-goto-login').addEventListener('click', () => showSection('view-login'));
 $('btn-goto-signup').addEventListener('click', () => showSection('view-signup'));
 $('btn-login-back-welcome').addEventListener('click', () => showSection('view-welcome'));
 $('btn-signup-back-welcome').addEventListener('click', () => showSection('view-welcome'));
-modal.addEventListener('cancel', (event) => event.preventDefault());
+
+$('navbar-user-display-name').addEventListener('click', () => {
+  $('account-user-display-name').textContent = user.name;
+  renderAccountBoards();
+  showSection('view-account');
+  modal.showModal();
+});
+$('btn-account-back').addEventListener('click', () => modal.close());
+
+modal.addEventListener('cancel', (event) => {
+  if ($('view-account').hidden) event.preventDefault();
+});
 
 $('form-login').addEventListener('submit', (event) => {
   event.preventDefault();

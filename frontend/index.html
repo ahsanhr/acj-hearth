@@ -24,7 +24,7 @@
                 <label id="invite-result" hidden>Share this link (expires in 7 days)
                     <input id="invitation-link" readonly />
                 </label>
-                <span class="nav-user">Welcome, <span id="user-display-name"></span>!</span>
+                <span class="nav-user">Welcome, <button id="navbar-user-display-name" type="button" aria-haspopup="dialog"></button>!</span>
                 <button id="btn-logout" class="pill-btn" type="button">Log out</button>
             </nav>
             <section id="home-page" aria-labelledby="home-title">
@@ -48,11 +48,13 @@
                     <input id="list-title" required maxlength="128" />
                     <button class="pill-btn" type="submit">Create my list</button>
                 </form>
-                <p id="move-help">Drag a note by its handle to move it. With the handle focused, use arrow keys (Shift for larger steps). Positions are shared and saved automatically.</p>
                 <div class="board-viewport" tabindex="0" aria-label="Scrollable corkboard">
-                    <div class="header-tag"><h1 id="board-heading">Hearth</h1></div>
-                    <p id="app-error" class="error" role="alert" hidden></p>
-                    <p id="app-status" role="status" aria-live="polite"></p>
+                    <div class="header-tag">
+                        <h1 id="board-heading">Hearth</h1>
+                        <p id="move-help">Drag a note by its pin to move.</p>
+                        <p id="app-error" class="error" role="alert" hidden></p>
+                        <p id="app-status" role="status" aria-live="polite"></p>
+                    </div>
                     <div id="lists" class="board-lists"></div>
                 </div>
             </section>
@@ -106,7 +108,15 @@
 
           </form>
         </section>
-
+        <section id="view-account" hidden>
+            <h1 id="account-user-display-name"></h1>
+            <h2>Boards</h2>
+            <ul id="account-boards"></ul>
+            <p id="account-boards-empty" hidden>You’re not part of any boards yet.</p>
+            <div class="button-row">
+                <button type="button" id="btn-account-back" class="pill-btn" autofocus>Back</button>
+            </div>
+        </section>
     </dialog>
 
     <script type="module" src="js/app.js"></script>
