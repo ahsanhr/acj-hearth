@@ -14,15 +14,16 @@
 </head>
 <body>
     <main>
-        <div class="header-tag"><h1 id="board-heading">Hearth</h1></div>
-        <p id="app-error" class="error" role="alert" hidden></p>
-        <p id="app-status" role="status" aria-live="polite"></p>
         <section id="workspace" hidden>
             <nav class="app-nav" aria-label="Main navigation">
                 <a href="#home" id="nav-home" class="nav-link">Home</a>
                 <label for="board-select">Board</label>
                 <select id="board-select"></select>
                 <button id="btn-refresh" class="pill-btn" type="button">Refresh</button>
+                <button id="btn-invite" class="pill-btn" type="button" hidden>Invite members</button>
+                <label id="invite-result" hidden>Share this link (expires in 7 days)
+                    <input id="invitation-link" readonly />
+                </label>
                 <span class="nav-user">Welcome, <span id="user-display-name"></span>!</span>
                 <button id="btn-logout" class="pill-btn" type="button">Log out</button>
             </nav>
@@ -42,12 +43,6 @@
             </form>
             </section>
             <section id="board-content" aria-label="Board workspace" hidden>
-                <div class="toolbar">
-                    <button id="btn-invite" class="pill-btn" type="button" hidden>Invite members</button>
-                    <label id="invite-result" hidden>Share this link (expires in 7 days)
-                        <input id="invitation-link" readonly />
-                    </label>
-                </div>
                 <form id="form-list" class="toolbar">
                     <label for="list-title">Your list title</label>
                     <input id="list-title" required maxlength="128" />
@@ -55,6 +50,9 @@
                 </form>
                 <p id="move-help">Drag a note by its handle to move it. With the handle focused, use arrow keys (Shift for larger steps). Positions are shared and saved automatically.</p>
                 <div class="board-viewport" tabindex="0" aria-label="Scrollable corkboard">
+                    <div class="header-tag"><h1 id="board-heading">Hearth</h1></div>
+                    <p id="app-error" class="error" role="alert" hidden></p>
+                    <p id="app-status" role="status" aria-live="polite"></p>
                     <div id="lists" class="board-lists"></div>
                 </div>
             </section>
